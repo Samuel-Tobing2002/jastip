@@ -1,0 +1,77 @@
+[
+  {
+    "id": "prod-1791379025656",
+    "title": "Baju Cowok",
+    "description": "Baju COwok",
+    "category": "mens-shirt",
+    "tag": "Mens Shirt",
+    "basePrice": 100,
+    "stock": 1,
+    "rating": 4.8,
+    "thumbnail": "/uploads/1791379025655-f03d7cae8bef7.jpg",
+    "images": [
+      "/uploads/1791379025655-f03d7cae8bef7.jpg"
+    ],
+    "createdAt": "2026-10-07T13:17:05.656Z"
+  },
+  {
+    "id": "prod-1001",
+    "title": "Oversized Cotton Shirt",
+    "description": "Kemeja cotton oversized untuk daily outfit. Cocok untuk request jastip warna netral.",
+    "category": "mens-shirts",
+    "tag": "Mens Shirts",
+    "basePrice": 42,
+    "stock": 18,
+    "rating": 4.8,
+    "thumbnail": "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=85",
+    "images": [
+      "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=85"
+    ],
+    "createdAt": "2026-10-06T00:00:00.000Z"
+  },
+  {
+    "id": "prod-1002",
+    "title": "Minimal Summer Dress",
+    "description": "Dress ringan dengan siluet clean untuk acara santai dan semi-formal.",
+    "category": "womens-dresses",
+    "tag": "Womens Dresses",
+    "basePrice": 58,
+    "stock": 12,
+    "rating": 4.9,
+    "thumbnail": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=85",
+    "images": [
+      "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=85"
+    ],
+    "createdAt": "2026-10-06T00:00:00.000Z"
+  },
+  {
+    "id": "prod-1003",
+    "title": "Classic Leather Sneakers",
+    "description": "Sneakers leather putih yang gampang dipadukan dengan outfit kasual.",
+    "category": "mens-shoes",
+    "tag": "Mens Shoes",
+    "basePrice": 76,
+    "stock": 9,
+    "rating": 4.7,
+    "thumbnail": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85"
+    ],
+    "createdAt": "2026-10-06T00:00:00.000Z"
+  },
+  {
+    "id": "prod-1004",
+    "title": "Structured Mini Bag",
+    "description": "Tas compact dengan bentuk tegas untuk melengkapi look harian.",
+    "category": "womens-bags",
+    "tag": "Womens Bags",
+    "basePrice": 64,
+    "stock": 15,
+    "rating": 4.6,
+    "thumbnail": "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=900&q=85",
+    "images": [
+      "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=900&q=85"
+    ],
+    "createdAt": "2026-10-06T00:00:00.000Z"
+  }
+]

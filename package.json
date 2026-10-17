@@ -1,0 +1,34 @@
+{
+  "name": "online-shop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "backend": "node backend/server.js",
+    "backoffice": "vite backoffice --port 5174",
+    "dev": "vite",
+    "dev:frontend": "vite",
+    "start": "node backend/server.js",
+    "build": "vite build",
+    "build:frontend": "vite build",
+    "build:backoffice": "vite build backoffice --outDir ../dist-backoffice --emptyOutDir",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "axios": "^1.20.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "vite": "^8.3.0"
+  }
+}
