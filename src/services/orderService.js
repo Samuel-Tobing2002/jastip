@@ -7,7 +7,14 @@ export const readLocalTransactions = () => {
 export const syncTransactions = async (transactions = readLocalTransactions()) => {
   const synced = await Promise.all(transactions.map(async (transaction) => {
     try {
-      const response = await fetch(`${API_URL}/api/orders/${encodeURIComponent(transaction.id)}`);
+      const response = await fetch(
+        `${API_URL}/api/orders/${encodeURIComponent(transaction.id)}`,
+        {
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        }
+      );
       if (!response.ok) return transaction;
       return { ...transaction, ...(await response.json()) };
     } catch { return transaction; }
