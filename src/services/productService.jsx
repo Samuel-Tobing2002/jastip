@@ -34,14 +34,25 @@ const normalizeProduct = (product) => ({
 });
 
 export const getProducts = async () => {
-  const response = await api.get("/api/products");
+  const response = await axios.get(`${API_URL}/api/products`, {
+    headers: {
+      "ngrok-skip-browser-warning": "true",
+    },
+  });
+
   return response.data.map(normalizeProduct);
 };
 
 export const getProductById = async (id) => {
-  const response = await api.get(
-    `/api/products/${encodeURIComponent(id)}`
+  const response = await axios.get(
+    `${API_URL}/api/products/${id}`,
+    {
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
+    }
   );
+
   return normalizeProduct(response.data);
 };
 
