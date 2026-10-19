@@ -14,13 +14,19 @@ const rootDir = path.resolve(__dirname, "..");
 const envPath = path.join(rootDir, ".env");
 if (existsSync(envPath)) {
   const envText = readFileSync(envPath, "utf8");
+  const localEnv = {};
+
+  // If a key is repeated in .env, the LAST value wins.
+  // Existing platform environment variables still take precedence.
   for (const line of envText.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
+
     const match = trimmed.match(
       /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/
     );
     if (!match) continue;
+
     const key = match[1];
     let value = match[2].trim();
     if (
@@ -29,6 +35,10 @@ if (existsSync(envPath)) {
     ) {
       value = value.slice(1, -1);
     }
+    localEnv[key] = value;
+  }
+
+  for (const [key, value] of Object.entries(localEnv)) {
     if (process.env[key] === undefined) {
       process.env[key] = value;
     }
