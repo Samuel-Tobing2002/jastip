@@ -52,7 +52,14 @@ function Checkout() {
     let active = true;
     const refreshOrder = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/orders/${encodeURIComponent(transaction.id)}`);
+        const response = await fetch(
+          `${API_URL}/api/orders/${encodeURIComponent(transaction.id)}`,
+          {
+            headers: {
+              "ngrok-skip-browser-warning": "true",
+            },
+          }
+        );
         if (!response.ok) return;
         const updated = await response.json();
         if (!active) return;
@@ -140,11 +147,22 @@ function Checkout() {
         updatedAt: now,
       };
       const proofDataUrl = await fileToDataUrl(paymentProof);
+
       const response = await fetch(`${API_URL}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order: newTransaction, paymentProof: { fileName: paymentProof.name, dataUrl: proofDataUrl } }),
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({
+          order: newTransaction,
+          paymentProof: {
+            fileName: paymentProof.name,
+            dataUrl: proofDataUrl,
+          },
+        }),
       });
+
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Pesanan gagal dikirim ke server.");
       const savedTransaction = { ...newTransaction, ...data };
