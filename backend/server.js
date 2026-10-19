@@ -470,14 +470,28 @@ const server = createServer(async (req, res) => {
   const pathname = url.pathname;
   const requestOrigin = req.headers.origin;
 
+  // CORS: return only the origin that matches the request.
   if (CORS_ORIGIN === "*") {
     res.setHeader("Access-Control-Allow-Origin", "*");
   } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
     res.setHeader("Access-Control-Allow-Origin", requestOrigin);
   }
 
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  res.setHeader("Vary", "Origin");
+
   if (req.method === "OPTIONS") {
-    sendJson(res, 204, {});
+    res.writeHead(204);
+    res.end();
     return;
   }
 
