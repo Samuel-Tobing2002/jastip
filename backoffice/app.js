@@ -1,4 +1,7 @@
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+// const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+
+const API_URL = (import.meta.env.VITE_API_URL || "https://confront-radiantly-polar.ngrok-free.dev").replace(/\/$/, "");
+
 const TOKEN_KEY = "jastip_backoffice_token";
 
 const app = document.querySelector("#app");
