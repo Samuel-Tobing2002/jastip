@@ -1,7 +1,17 @@
+
 import axios from "axios";
 
-export const API_URL =
-  (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+export const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:4000"
+).replace(/\/$/, "");
+
+// Tambahkan header untuk request ke backend melalui ngrok.
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "ngrok-skip-browser-warning": "true",
+  },
+});
 
 const normalizeProduct = (product) => ({
   ...product,
@@ -13,7 +23,9 @@ const normalizeProduct = (product) => ({
     ? `${API_URL}${product.thumbnail}`
     : product.thumbnail,
   images: (product.images || []).map((image) =>
-    image?.startsWith("/uploads/") ? `${API_URL}${image}` : image
+    image?.startsWith("/uploads/")
+      ? `${API_URL}${image}`
+      : image
   ),
   tag:
     product.category
@@ -22,29 +34,31 @@ const normalizeProduct = (product) => ({
 });
 
 export const getProducts = async () => {
-  const response = await axios.get(`${API_URL}/api/products`);
+  const response = await api.get("/api/products");
   return response.data.map(normalizeProduct);
 };
 
 export const getProductById = async (id) => {
-  const response = await axios.get(`${API_URL}/api/products/${id}`);
+  const response = await api.get(
+    `/api/products/${encodeURIComponent(id)}`
+  );
   return normalizeProduct(response.data);
 };
 
 export const getCategories = async () => {
-  const response = await axios.get(`${API_URL}/api/categories`);
+  const response = await api.get("/api/categories");
   return response.data;
 };
 
 export const getProductsByCategory = async (category) => {
-  const response = await axios.get(
-    `${API_URL}/api/products?category=${encodeURIComponent(category)}`
-  );
+  const response = await api.get("/api/products", {
+    params: { category },
+  });
 
   return response.data.map(normalizeProduct);
 };
 
 export const getSettings = async () => {
-  const response = await axios.get(`${API_URL}/api/settings`);
+  const response = await api.get("/api/settings");
   return response.data;
 };
