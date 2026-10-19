@@ -77,6 +77,8 @@ const allowedOrigins = CORS_ORIGIN
   .split(",")
   .map(normalizeOrigin)
   .filter(Boolean);
+const ALLOW_HEADERS =
+  "Content-Type, Authorization, ngrok-skip-browser-warning";
 
 // CORS is set once in the request handler. Do not fall back to the full
 // comma-separated CORS_ORIGIN string: browsers require one origin per header.
@@ -84,7 +86,7 @@ const sendJson = (res, status, payload) => {
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": ALLOW_HEADERS,
     Vary: "Origin",
   };
   const allowedOrigin = res.getHeader("Access-Control-Allow-Origin");
@@ -505,10 +507,7 @@ const server = createServer(async (req, res) => {
     "GET, POST, PUT, PATCH, DELETE, OPTIONS"
   );
 
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
+  res.setHeader("Access-Control-Allow-Headers", ALLOW_HEADERS);
 
   res.setHeader("Vary", "Origin");
 
