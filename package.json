@@ -11,7 +11,7 @@
     "start": "node backend/server.js",
     "build": "vite build",
     "build:frontend": "vite build",
-    "build:backoffice": "vite build backoffice --outDir ../dist-backoffice --emptyOutDir",
+    "build:backoffice": "vite build --mode backoffice --outDir dist-backoffice",
     "lint": "oxlint",
     "preview": "vite preview"
   },
