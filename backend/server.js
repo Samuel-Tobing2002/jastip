@@ -62,17 +62,24 @@ const defaultSettings = {
   ownerWhatsapp: "",
 };
 
-const allowedOrigins = CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+const normalizeOrigin = (origin) => String(origin || "").trim().replace(/\/$/, "");
+const allowedOrigins = CORS_ORIGIN
+  .split(",")
+  .map(normalizeOrigin)
+  .filter(Boolean);
 
+// CORS is set once in the request handler. Do not fall back to the full
+// comma-separated CORS_ORIGIN string: browsers require one origin per header.
 const sendJson = (res, status, payload) => {
-  const origin = res.getHeader("Access-Control-Allow-Origin") || CORS_ORIGIN;
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": origin,
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     Vary: "Origin",
-  });
+  };
+  const allowedOrigin = res.getHeader("Access-Control-Allow-Origin");
+  if (allowedOrigin) headers["Access-Control-Allow-Origin"] = allowedOrigin;
+  res.writeHead(status, headers);
   res.end(JSON.stringify(payload));
 };
 
@@ -451,12 +458,17 @@ const serveStaticUpload = async (req, res, pathname) => {
         : "image/png";
 
   const requestOrigin = req.headers.origin;
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
   const allowedOrigin =
-    CORS_ORIGIN === "*"
+    CORS_ORIGIN.trim() === "*"
       ? "*"
-      : requestOrigin && allowedOrigins.includes(requestOrigin)
+      : normalizedRequestOrigin && allowedOrigins.includes(normalizedRequestOrigin)
         ? requestOrigin
-        : allowedOrigins[0] || "null";
+        : null;
+  if (!allowedOrigin) {
+    sendJson(res, 404, { message: "File not found" });
+    return;
+  }
   res.writeHead(200, {
     "Content-Type": mime,
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -470,10 +482,11 @@ const server = createServer(async (req, res) => {
   const pathname = url.pathname;
   const requestOrigin = req.headers.origin;
 
-  // CORS: return only the origin that matches the request.
-  if (CORS_ORIGIN === "*") {
+  // CORS: allow only an exact origin from the configured allowlist.
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+  if (CORS_ORIGIN.trim() === "*") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-  } else if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+  } else if (normalizedRequestOrigin && allowedOrigins.includes(normalizedRequestOrigin)) {
     res.setHeader("Access-Control-Allow-Origin", requestOrigin);
   }
 
