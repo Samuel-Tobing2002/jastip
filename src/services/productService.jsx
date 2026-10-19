@@ -5,7 +5,6 @@ export const API_URL = (
   import.meta.env.VITE_API_URL || "http://localhost:4000"
 ).replace(/\/$/, "");
 
-// Tambahkan header untuk request ke backend melalui ngrok.
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -34,25 +33,14 @@ const normalizeProduct = (product) => ({
 });
 
 export const getProducts = async () => {
-  const response = await axios.get(`${API_URL}/api/products`, {
-    headers: {
-      "ngrok-skip-browser-warning": "true",
-    },
-  });
-
+  const response = await api.get("/api/products");
   return response.data.map(normalizeProduct);
 };
 
 export const getProductById = async (id) => {
-  const response = await axios.get(
-    `${API_URL}/api/products/${id}`,
-    {
-      headers: {
-        "ngrok-skip-browser-warning": "true",
-      },
-    }
+  const response = await api.get(
+    `/api/products/${encodeURIComponent(id)}`
   );
-
   return normalizeProduct(response.data);
 };
 
@@ -65,7 +53,6 @@ export const getProductsByCategory = async (category) => {
   const response = await api.get("/api/products", {
     params: { category },
   });
-
   return response.data.map(normalizeProduct);
 };
 
