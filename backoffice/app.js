@@ -2,6 +2,17 @@
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://confront-radiantly-polar.ngrok-free.dev").replace(/\/$/, "");
 
+async function apiFetch(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+
+  headers.set("ngrok-skip-browser-warning", "true");
+
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+  });
+}
+
 const TOKEN_KEY = "jastip_backoffice_token";
 
 const app = document.querySelector("#app");
@@ -22,24 +33,34 @@ const money = (value) => `$${Number(value || 0).toFixed(2)}`;
 const imageUrl = (value) =>
   value?.startsWith("/uploads/") ? `${API_URL}${value}` : value;
 
+
 const request = async (path, options = {}) => {
+  const headers = new Headers(options.headers || {});
+
+  headers.set("ngrok-skip-browser-warning", "true");
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || "Request gagal.");
+    throw new Error(data.message || `Request gagal (HTTP ${response.status}).`);
   }
 
   return data;
 };
+
 
 const fileToDataUrl = (file) =>
   new Promise((resolve, reject) => {
