@@ -44,7 +44,7 @@ function Checkout() {
   const [error, setError] = useState("");
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const discountAmount = appliedCoupon ? Math.round(productSubtotal * Number(appliedCoupon.discountPercent || 0) / 100) : 0;
+  const discountAmount = appliedCoupon ? Math.round(productSubtotal * Math.min(2.5, Number(appliedCoupon.discountPercent || 0)) / 100) : 0;
   const finalTotal = Math.max(0, total - discountAmount);
   const [paymentProof, setPaymentProof] = useState(null);
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -174,7 +174,7 @@ function Checkout() {
       let previousTransactions = [];
       try { previousTransactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "[]"); } catch { previousTransactions = []; }
       localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify([savedTransaction, ...previousTransactions.filter((item) => item.id !== savedTransaction.id)]));
-      if (appliedCoupon) { const savedCoupons = JSON.parse(localStorage.getItem("jastip_review_coupons") || "[]"); localStorage.setItem("jastip_review_coupons", JSON.stringify(savedCoupons.map((coupon) => coupon.code === appliedCoupon.code ? { ...coupon, used: true, usedFor: transactionId } : coupon))); }
+      if (appliedCoupon) { const profile = getSavedProfile(); const couponKey = `jastip_review_coupons:${String(profile?.email || "guest").toLowerCase()}`; const savedCoupons = JSON.parse(localStorage.getItem(couponKey) || "[]"); localStorage.setItem(couponKey, JSON.stringify(savedCoupons.map((coupon) => coupon.code === appliedCoupon.code ? { ...coupon, used: true, usedFor: transactionId } : coupon))); }
       setTransaction(savedTransaction);
       clearCart();
       setPaymentSuccess(true);
@@ -302,12 +302,6 @@ function Checkout() {
 
           {transaction && (
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-
-              <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <label className="mb-2 block text-sm font-semibold text-white/70">Kupon ulasan (opsional)</label>
-                <div className="flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} placeholder="JASTIP-XXXXXX" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/25"/><button type="button" onClick={() => { const list = JSON.parse(localStorage.getItem("jastip_review_coupons") || "[]"); const match = list.find((item) => item.code === couponInput.trim().toUpperCase() && !item.used); if (!match) { setAppliedCoupon(null); setError("Kupon tidak ditemukan atau sudah digunakan."); } else { setAppliedCoupon(match); setError(""); } }} className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black">Pakai</button></div>
-                {appliedCoupon && <p className="mt-2 text-sm text-emerald-300">Kupon {appliedCoupon.code} aktif: diskon {appliedCoupon.discountPercent}% (−{formatRupiah(discountAmount)}).</p>}
-              </div>
               <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
 
                 <p className="text-xs uppercase tracking-widest text-white/30">
@@ -639,6 +633,12 @@ function Checkout() {
               </div>
 
               {appliedCoupon && <div className="mt-4 flex justify-between text-emerald-300"><span>Diskon kupon</span><span>−{formatRupiah(discountAmount)}</span></div>}
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
+                <label className="mb-2 block text-sm font-semibold text-white/80">Kupon ulasan <span className="font-normal text-white/40">(opsional · diskon 2,5%)</span></label>
+                <div className="flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} placeholder="Masukkan kode kupon" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white placeholder:text-white/25"/><button type="button" onClick={() => { const profile = getSavedProfile(); const couponKey = `jastip_review_coupons:${String(profile?.email || "guest").toLowerCase()}`; const list = JSON.parse(localStorage.getItem(couponKey) || "[]"); const match = list.find((item) => item.code === couponInput.trim().toUpperCase() && !item.used && String(item.ownerEmail || "").toLowerCase() === String(profile?.email || "").toLowerCase()); if (!match) { setAppliedCoupon(null); setError("Kupon tidak ditemukan, bukan milik akun ini, atau sudah digunakan."); } else { setAppliedCoupon({ ...match, discountPercent: 2.5 }); setError(""); } }} className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black">Pakai</button>{appliedCoupon && <button type="button" onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="rounded-xl border border-white/20 px-3 py-2 text-xs text-white">Hapus</button>}</div>
+                {appliedCoupon && <p className="mt-2 text-sm text-emerald-300">Kupon aktif: potongan {formatRupiah(discountAmount)}.</p>}
+              </div>
+
               <div className="my-6 h-px bg-white/10" />
 
               <div className="flex justify-between">

@@ -27,7 +27,7 @@ let settings = {
 };
 let message = "";
 let error = "";
-let activeSection = "products";
+let activeSection = "orders";
 
 const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0) * 1000);
 const imageUrl = (value) =>
@@ -276,6 +276,12 @@ const renderDashboard = () => {
           </div>
           <button class="button secondary" id="refreshOrders" type="button">Refresh orders</button>
         </div>
+        <div class="order-kpi-grid">
+          ${[{label:"Semua pesanan",status:"ALL",count:orders.length},{label:"Menunggu approval",status:"PROCESSING",count:orders.filter(o=>String(o.status).toUpperCase()==="PROCESSING").length},{label:"Approved",status:"APPROVED",count:orders.filter(o=>String(o.status).toUpperCase()==="APPROVED").length},{label:"Purchased",status:"PURCHASED",count:orders.filter(o=>String(o.status).toUpperCase()==="PURCHASED").length},{label:"Delivered",status:"DELIVERED",count:orders.filter(o=>String(o.status).toUpperCase()==="DELIVERED").length},{label:"Rejected",status:"REJECTED",count:orders.filter(o=>String(o.status).toUpperCase()==="REJECTED").length}].map(item=>`<button class="order-kpi ${orderStatusFilter===item.status?"active":""}" type="button" data-status-shortcut="${item.status}"><span>${item.label}</span><strong>${item.count}</strong></button>`).join("")}
+        </div>
+        <section class="status-chart panel"><div class="status-chart-head"><div><p class="eyebrow">Ringkasan operasional</p><h3>Distribusi status pesanan</h3></div><span>${orders.length} pesanan tercatat</span></div>
+          ${["PROCESSING","APPROVED","PURCHASED","DELIVERED","REJECTED"].map(status=>{const count=orders.filter(o=>String(o.status).toUpperCase()===status).length;const pct=orders.length?Math.round(count/orders.length*100):0;return `<div class="status-bar-row"><div><span>${statusLabel(status)}</span><strong>${count} <small>(${pct}%)</small></strong></div><div class="status-bar-track"><span class="status-bar-fill status-fill-${status.toLowerCase()}" style="width:${pct}%"></span></div></div>`}).join("")}
+        </section>
         <div class="order-filters"><input id="orderSearch" type="search" value="${escapeHtml(orderQuery)}" placeholder="Cari nama, nomor HP, alamat, ID, atau produk..."/><select id="orderStatusFilter"><option value="ALL" ${orderStatusFilter === "ALL" ? "selected" : ""}>Semua status</option>${["PROCESSING","APPROVED","REJECTED","PURCHASED","DELIVERED"].map((status) => `<option value="${status}" ${orderStatusFilter === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}</select></div>
         ${ordersError ? `<div class="message error" style="margin-top:18px">Pesanan belum dapat dimuat: ${escapeHtml(ordersError)}. Jika menggunakan Supabase, jalankan supabase/schema.sql terbaru untuk membuat tabel orders.</div>` : ""}
         ${visibleOrders.length ? `<div class="orders-list">${visibleOrders.map((order) => {
@@ -448,6 +454,7 @@ const renderDashboard = () => {
 
   document.querySelector("#orderSearch")?.addEventListener("input", (event) => { window.orderQuery = event.target.value; const pos = event.target.selectionStart; renderDashboard(); const next = document.querySelector("#orderSearch"); next?.focus(); next?.setSelectionRange(pos, pos); });
   document.querySelector("#orderStatusFilter")?.addEventListener("change", (event) => { window.orderStatusFilter = event.target.value; renderDashboard(); });
+  document.querySelectorAll("[data-status-shortcut]").forEach((button) => button.addEventListener("click", () => { window.orderStatusFilter = button.dataset.statusShortcut; activeSection = "orders"; renderDashboard(); }));
 
   document.querySelectorAll("[data-order-action]").forEach((button) => {
     button.addEventListener("click", async () => {

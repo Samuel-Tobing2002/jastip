@@ -23,12 +23,12 @@ function RequireAuth({ children }) {
   return children;
 }
 
-function App() {
-  return (
-    <BrowserRouter>
-
-      <Navbar />
-
+function SiteLayout() {
+  const location = useLocation();
+  const loggedIn = Boolean(localStorage.getItem(TOKEN_KEY));
+  const hideHeader = location.pathname === "/account" && !loggedIn;
+  return <>
+      {!hideHeader && <Navbar />}
       <Routes>
 
         <Route
@@ -62,9 +62,11 @@ function App() {
         <Route path="/reviews" element={<Reviews />} />
 
       </Routes>
+    </>;
+}
 
-    </BrowserRouter>
-  );
+function App() {
+  return <BrowserRouter><SiteLayout /></BrowserRouter>;
 }
 
 export default App;
