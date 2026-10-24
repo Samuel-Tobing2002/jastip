@@ -178,7 +178,10 @@ function Account() {
 
       // Langsung pindah ke Home setelah sesi tersimpan; jangan menahan
       // pengguna di halaman profil di balik modal sukses.
-      navigate("/", { replace: true });
+      
+      const destination = location.state?.from || "/";
+      navigate(destination, { replace: true, state: null });
+
     } catch (err) {
       setError(err.message || "Terjadi kesalahan.");
 

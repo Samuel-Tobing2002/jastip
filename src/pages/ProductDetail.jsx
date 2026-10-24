@@ -112,12 +112,27 @@ function ProductDetail() {
     }, 2500);
   };
 
+
   const handleRequestJastip = () => {
     if (!product || Number(product.stock) <= 0 || quantity > Number(product.stock)) return;
+
+    const token = localStorage.getItem("jastip_customer_token");
+
+    if (!token) {
+      navigate("/account", {
+        state: {
+          loginRequired: true,
+          from: `/products/${id}`,
+        },
+      });
+      return;
+    }
 
     addToCart(buildCartProduct(), quantity);
     navigate("/cart");
   };
+
+  
 
   if (loading) {
     return (
