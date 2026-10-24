@@ -12,9 +12,11 @@ const editorialImage =
 
 function Home() {
   const [products, setProducts] = useState([]);
+  const [isLoggedIn] = useState(() => Boolean(localStorage.getItem("jastip_customer_token")));
 
   useEffect(() => {
     const fetchProducts = async () => {
+      if (!localStorage.getItem("jastip_customer_token")) return;
       try {
         const data = await getProducts();
         setProducts(data.slice(0, 8));
@@ -195,14 +197,14 @@ function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-              />
-            ))}
-          </div>
+          {isLoggedIn ? <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {products.map((product) => <ProductCard key={product.id} product={product} />)}
+          </div> : <div className="border border-black/10 bg-white px-6 py-12 text-center md:px-12">
+            <p className="text-xs font-black uppercase tracking-[.24em] text-black/45">Member access</p>
+            <h3 className="mt-4 text-2xl font-black uppercase md:text-3xl">Login untuk melihat katalog produk</h3>
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-black/60">Buat akun JASTIP atau login terlebih dahulu untuk melihat produk, stok, pilihan warna, dan melakukan pemesanan.</p>
+            <Link to="/account" className="mt-6 inline-flex bg-black px-7 py-4 text-xs font-black uppercase tracking-[.18em] text-white">Login / Daftar</Link>
+          </div>}
         </div>
       </section>
 

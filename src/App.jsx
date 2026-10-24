@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
 
@@ -13,6 +13,16 @@ import OrderWhatsApp from "./pages/OrderWhatsApp";
 import Account from "./pages/Account";
 import Reviews from "./pages/Reviews";
 
+const TOKEN_KEY = "jastip_customer_token";
+
+function RequireAuth({ children }) {
+  const location = useLocation();
+  if (!localStorage.getItem(TOKEN_KEY)) {
+    return <Navigate to="/account" replace state={{ from: location.pathname, loginRequired: true }} />;
+  }
+  return children;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -26,25 +36,13 @@ function App() {
           element={<Home />}
         />
 
-        <Route
-          path="/products"
-          element={<Products />}
-        />
+        <Route path="/products" element={<RequireAuth><Products /></RequireAuth>} />
 
-        <Route
-          path="/products/:id"
-          element={<ProductDetail />}
-        />
+        <Route path="/products/:id" element={<RequireAuth><ProductDetail /></RequireAuth>} />
 
-        <Route
-          path="/cart"
-          element={<Cart />}
-        />
+        <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
 
-        <Route
-          path="/checkout"
-          element={<Checkout />}
-        />
+        <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
 
         <Route
           path="/jastip"

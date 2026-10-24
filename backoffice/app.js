@@ -394,26 +394,50 @@ const renderDashboard = () => {
     button.addEventListener("click", async () => {
       const product = products.find((item) => item.id === button.dataset.edit);
       if (!product) return;
-      const title = window.prompt("Nama produk:", product.title); if (title === null) return;
-      const description = window.prompt("Deskripsi:", product.description || ""); if (description === null) return;
-      const category = window.prompt("Kategori:", product.category || "fashion"); if (category === null) return;
-      const stockText = window.prompt("Stok tersedia (isi 0 jika habis):", String(product.stock ?? 0)); if (stockText === null) return;
-      const priceText = window.prompt("Harga modal (ribuan Rupiah):", String(product.basePrice ?? 0)); if (priceText === null) return;
-      const colorsText = window.prompt("Warna dipisahkan koma:", (product.colors || []).join(", ")); if (colorsText === null) return;
+      const result = await window.Swal?.fire({
+        title: "Edit produk",
+        html: `<div class="swal-product-form">
+          <label>Nama produk<input id="edit-title" class="swal2-input" value="${escapeHtml(product.title)}"></label>
+          <label>Deskripsi<textarea id="edit-description" class="swal2-textarea">${escapeHtml(product.description || "")}</textarea></label>
+          <div class="swal-product-row"><label>Kategori<input id="edit-category" class="swal2-input" value="${escapeHtml(product.category || "fashion")}"></label><label>Stok tersedia<input id="edit-stock" class="swal2-input" type="number" min="0" value="${Number(product.stock ?? 0)}"></label></div>
+          <div class="swal-product-row"><label>Harga modal (ribuan Rp)<input id="edit-price" class="swal2-input" type="number" min="0" step="1" value="${Number(product.basePrice ?? 0)}"></label><label>Rating<input id="edit-rating" class="swal2-input" type="number" min="0" max="5" step="0.1" value="${Number(product.rating || 4.8)}"></label></div>
+          <label>Warna (pisahkan dengan koma)<input id="edit-colors" class="swal2-input" value="${escapeHtml((product.colors || []).join(", "))}"></label>
+        </div>`,
+        width: 680,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: "Simpan perubahan",
+        cancelButtonText: "Batal",
+        confirmButtonColor: "#111111",
+        cancelButtonColor: "#777777",
+        customClass: { popup: "jastip-swal-popup", htmlContainer: "jastip-swal-html" },
+        preConfirm: () => {
+          const value = (id) => document.getElementById(id).value.trim();
+          const stock = Number(value("edit-stock")); const price = Number(value("edit-price")); const rating = Number(value("edit-rating"));
+          if (!value("edit-title") || !value("edit-category") || !Number.isInteger(stock) || stock < 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(rating) || rating < 0 || rating > 5) {
+            window.Swal.showValidationMessage("Periksa nama, kategori, stok, harga, dan rating."); return false;
+          }
+          return { title: value("edit-title"), description: value("edit-description"), category: value("edit-category"), stock, basePrice: price, rating, colors: value("edit-colors").split(",").map((c) => c.trim()).filter(Boolean) };
+        }
+      });
+      if (!result?.isConfirmed) return;
       try {
-        await request(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PUT", body: JSON.stringify({ title, description, category, stock: Number(stockText), basePrice: Number(priceText), rating: Number(product.rating || 4.8), colors: colorsText.split(",").map((c) => c.trim()).filter(Boolean) }) });
-        await loadDashboard(); showMessage("Produk berhasil diperbarui.");
-      } catch (err) { showMessage(err.message, true); }
+        await request(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PUT", body: JSON.stringify(result.value) });
+        await loadDashboard(); renderDashboard();
+        await window.Swal?.fire({ icon: "success", title: "Produk diperbarui", text: "Perubahan produk dan stok sudah tersimpan.", confirmButtonColor: "#111111" });
+      } catch (err) { await window.Swal?.fire({ icon: "error", title: "Gagal memperbarui produk", text: err.message, confirmButtonColor: "#111111" }); }
     });
   });
 
   document.querySelectorAll("[data-delete]").forEach((button) => {
     button.addEventListener("click", async () => {
+      const result = await window.Swal?.fire({ icon: "warning", title: "Hapus produk?", text: "Produk ini akan dihapus dari katalog.", showCancelButton: true, confirmButtonText: "Ya, hapus", cancelButtonText: "Batal", confirmButtonColor: "#b42318" });
+      if (!result?.isConfirmed) return;
       try {
         await request(`/api/admin/products/${button.dataset.delete}`, { method: "DELETE" });
-        await loadDashboard();
-        showMessage("Produk berhasil dihapus.");
-      } catch (err) { showMessage(err.message, true); }
+        await loadDashboard(); renderDashboard();
+        await window.Swal?.fire({ icon: "success", title: "Produk dihapus", confirmButtonColor: "#111111" });
+      } catch (err) { await window.Swal?.fire({ icon: "error", title: "Gagal menghapus", text: err.message, confirmButtonColor: "#111111" }); }
     });
   });
 
@@ -428,24 +452,19 @@ const renderDashboard = () => {
   document.querySelectorAll("[data-order-action]").forEach((button) => {
     button.addEventListener("click", async () => {
       const action = button.dataset.orderAction;
+      const titles = { approve: "Approve pembayaran?", reject: "Tolak pesanan?", purchased: "Konfirmasi pembelian?", delivered: "Tandai pesanan terkirim?" };
+      const prompts = { approve: "Pastikan bukti pembayaran sudah diperiksa.", reject: "Pesanan akan ditolak dan alasan penolakan dicatat.", purchased: "Konfirmasi bahwa produk sudah dibeli dari supplier.", delivered: "Pastikan pesanan sudah diterima pelanggan." };
       let reason = "";
-      if (action === "reject") {
-        reason = window.prompt("Masukkan alasan penolakan pesanan:") || "";
-        if (!reason.trim()) { showMessage("Alasan penolakan wajib diisi.", true); return; }
-        if (!window.confirm("Yakin menolak pesanan ini?")) return;
-      } else {
-        const prompts = { approve: "Approve pesanan setelah memeriksa bukti pembayaran?", purchased: "Konfirmasi bahwa barang sudah dibeli?", delivered: "Konfirmasi bahwa barang sudah diterima/dikirim ke pelanggan?" };
-        if (!window.confirm(prompts[action] || "Lanjutkan perubahan status?")) return;
-      }
+      const result = await window.Swal?.fire({ icon: action === "reject" ? "warning" : "question", title: titles[action] || "Ubah status pesanan?", text: prompts[action] || "Lanjutkan perubahan status?", input: action === "reject" ? "textarea" : undefined, inputLabel: action === "reject" ? "Alasan penolakan" : undefined, inputPlaceholder: action === "reject" ? "Tuliskan alasan yang jelas..." : undefined, inputValidator: action === "reject" ? (value) => !value?.trim() ? "Alasan penolakan wajib diisi." : undefined : undefined, showCancelButton: true, confirmButtonText: action === "reject" ? "Ya, tolak" : "Ya, lanjutkan", cancelButtonText: "Batal", confirmButtonColor: action === "reject" ? "#b42318" : "#111111" });
+      if (!result?.isConfirmed) return;
+      if (action === "reject") reason = result.value.trim();
       button.disabled = true;
       try {
-        await request(`/api/admin/orders/${encodeURIComponent(button.dataset.orderId)}`, {
-          method: "PATCH", body: JSON.stringify({ action, reason }),
-        });
-        await loadDashboard();
-        activeSection = "orders";
-        showMessage(action === "approve" ? "Pesanan berhasil di-approve." : action === "reject" ? "Pesanan berhasil ditolak." : action === "purchased" ? "Status Purchased berhasil diperbarui." : "Status Delivered berhasil diperbarui.");
-      } catch (err) { showMessage(err.message, true); }
+        await request(`/api/admin/orders/${encodeURIComponent(button.dataset.orderId)}`, { method: "PATCH", body: JSON.stringify({ action, reason }) });
+        await loadDashboard(); activeSection = "orders"; renderDashboard();
+        const success = action === "approve" ? "Pembayaran berhasil di-approve." : action === "reject" ? "Pesanan berhasil ditolak." : action === "purchased" ? "Status pembelian berhasil diperbarui." : "Status pesanan berhasil diperbarui.";
+        await window.Swal?.fire({ icon: "success", title: "Berhasil", text: success, confirmButtonColor: "#111111" });
+      } catch (err) { await window.Swal?.fire({ icon: "error", title: "Perubahan gagal", text: err.message, confirmButtonColor: "#111111" }); }
     });
   });
 };
