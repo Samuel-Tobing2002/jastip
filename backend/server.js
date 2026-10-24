@@ -55,6 +55,7 @@ const settingsPath = path.join(dataDir, "settings.json");
 const ordersPath = path.join(dataDir, "orders.json");
 const usersPath = path.join(dataDir, "users.json");
 const reviewsPath = path.join(dataDir, "reviews.json");
+const couponsPath = path.join(dataDir, "review-coupons.json");
 const authSessions = new Map();
 
 const PORT = Number(process.env.PORT || 4000);
@@ -459,6 +460,26 @@ const getReviews = async () => {
   if (useSupabase) return supabaseRequest("/reviews?select=*&order=created_at.desc");
   return readJson(reviewsPath, []);
 };
+const getCoupons = async () => {
+  if (useSupabase) return supabaseRequest("/review_coupons?select=*&order=created_at.desc");
+  return readJson(couponsPath, []);
+};
+const createCoupon = async (coupon) => {
+  if (useSupabase) {
+    const rows = await supabaseRequest("/review_coupons", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        code: coupon.code, customer_email: coupon.ownerEmail, order_id: coupon.orderId,
+        discount_percent: coupon.discountPercent, used: false, created_at: coupon.createdAt,
+      }),
+    });
+    return rows[0] ? { ...coupon, ...rows[0], ownerEmail: rows[0].customer_email, discountPercent: Number(rows[0].discount_percent) } : coupon;
+  }
+  const coupons = await readJson(couponsPath, []);
+  await writeJson(couponsPath, [coupon, ...coupons]);
+  return coupon;
+};
 
 const uploadToCloudinary = async ({ fileName, dataUrl }) => {
   const match = dataUrl?.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
@@ -671,8 +692,11 @@ const server = createServer(async (req, res) => {
 
 
     if (pathname === "/api/orders" && req.method === "POST") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali sebelum membuat pesanan." }); return; }
       const body = await readBody(req);
       const incoming = body.order || body;
+      incoming.customer = { ...(incoming.customer || {}), email: user.email, accountId: user.id, name: user.name, phone: incoming.customer?.phone || user.phone, address: incoming.customer?.address || user.address };
       if (!incoming.id || !incoming.customer?.name || !incoming.customer?.phone || !incoming.customer?.address || !Array.isArray(incoming.items) || incoming.items.length === 0) {
         sendJson(res, 400, { message: "Data pesanan dan pelanggan belum lengkap." });
         return;
@@ -698,10 +722,21 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === "/api/my/orders" && req.method === "GET") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      const orders = await getOrders();
+      const ownOrders = orders.filter((order) => String(order.customer?.email || "").toLowerCase() === user.email.toLowerCase());
+      sendJson(res, 200, ownOrders);
+      return;
+    }
+
     if (pathname.startsWith("/api/orders/") && req.method === "GET") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
       const id = decodeURIComponent(pathname.replace("/api/orders/", ""));
-      const order = (await getOrders()).find((item) => item.id === id);
-      sendJson(res, order ? 200 : 404, order || { message: "Order tidak ditemukan." });
+      const order = (await getOrders()).find((item) => item.id === id && String(item.customer?.email || "").toLowerCase() === user.email.toLowerCase());
+      sendJson(res, order ? 200 : 404, order || { message: "Pesanan tidak ditemukan." });
       return;
     }
 
@@ -742,26 +777,72 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathname === "/api/reviews" && req.method === "GET") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      const ownOrders = (await getOrders()).filter((order) => String(order.customer?.email || "").toLowerCase() === user.email.toLowerCase());
+      const orderIds = new Set(ownOrders.map((order) => order.id));
       const rows = await getReviews();
-      sendJson(res, 200, rows.map((row) => ({ id: row.id, orderId: row.order_id || row.orderId, productId: row.product_id || row.productId, customerName: row.customer_name || row.customerName, rating: Number(row.rating), comment: row.comment || "", createdAt: row.created_at || row.createdAt })));
+      sendJson(res, 200, rows.filter((row) => orderIds.has(String(row.order_id || row.orderId))).map((row) => ({
+        id: row.id, orderId: row.order_id || row.orderId, productId: row.product_id || row.productId,
+        customerName: row.customer_name || row.customerName, rating: Number(row.rating),
+        comment: row.comment || "", createdAt: row.created_at || row.createdAt,
+      })));
+      return;
+    }
+    if (pathname === "/api/review-coupons" && req.method === "GET") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      const rows = await getCoupons();
+      sendJson(res, 200, rows.filter((row) => String(row.customer_email || row.ownerEmail || "").toLowerCase() === user.email.toLowerCase()).map((row) => ({
+        code: row.code, orderId: row.order_id || row.orderId, ownerEmail: row.customer_email || row.ownerEmail,
+        discountPercent: Number(row.discount_percent ?? row.discountPercent ?? 2.5), used: Boolean(row.used),
+        usedFor: row.used_for || row.usedFor || "", createdAt: row.created_at || row.createdAt,
+      })));
       return;
     }
     if (pathname === "/api/reviews" && req.method === "POST") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
       const body = await readBody(req);
       const orderId = String(body.orderId || ""); const productId = String(body.productId || "");
-      const order = (await getOrders()).find((item) => item.id === orderId);
-      if (!order || String(order.status).toUpperCase() !== "DELIVERED" || !(order.items || []).some((item) => item.id === productId)) { sendJson(res, 403, { message: "Ulasan hanya dapat diberikan untuk produk dari pesanan yang sudah Delivered." }); return; }
+      const order = (await getOrders()).find((item) => item.id === orderId && String(item.customer?.email || "").toLowerCase() === user.email.toLowerCase());
+      if (!order || String(order.status).toUpperCase() !== "DELIVERED" || !(order.items || []).some((item) => item.id === productId)) { sendJson(res, 403, { message: "Ulasan hanya dapat diberikan untuk produk dari pesananmu yang sudah Delivered." }); return; }
       const rating = Number(body.rating);
       if (!Number.isInteger(rating) || rating < 1 || rating > 5) { sendJson(res, 400, { message: "Rating harus 1 sampai 5 bintang." }); return; }
       const existing = await getReviews();
       if (existing.some((row) => String(row.order_id || row.orderId) === orderId && String(row.product_id || row.productId) === productId)) { sendJson(res, 409, { message: "Ulasan untuk produk pada pesanan ini sudah pernah dikirim." }); return; }
       const item = order.items.find((entry) => entry.id === productId);
-      const review = { id: `rev-${randomBytes(10).toString("hex")}`, orderId, productId, customerName: String(order.customer?.name || "Pelanggan"), productTitle: item.title, rating, comment: String(body.comment || "").trim().slice(0, 1500), createdAt: new Date().toISOString() };
+      const review = { id: `rev-${randomBytes(10).toString("hex")}`, orderId, productId, customerName: String(user.name || order.customer?.name || "Pelanggan"), productTitle: item.title, rating, comment: String(body.comment || "").trim().slice(0, 1500), createdAt: new Date().toISOString() };
       if (useSupabase) {
         const rows = await supabaseRequest("/reviews", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ id: review.id, order_id: orderId, product_id: productId, customer_name: review.customerName, rating, comment: review.comment, created_at: review.createdAt }) });
-        sendJson(res, 201, { ...review, ...(rows[0] || {}) }); return;
+        Object.assign(review, rows[0] || {});
+      } else {
+        await writeJson(reviewsPath, [review, ...existing]);
       }
-      await writeJson(reviewsPath, [review, ...existing]); sendJson(res, 201, review); return;
+      const coupon = await createCoupon({ code: `JASTIP-${randomBytes(4).toString("hex").toUpperCase()}`, orderId, ownerEmail: user.email.toLowerCase(), discountPercent: 2.5, used: false, createdAt: new Date().toISOString() });
+      sendJson(res, 201, { review, coupon });
+      return;
+    }
+
+    if (pathname.startsWith("/api/review-coupons/") && req.method === "PATCH") {
+      const user = await authenticatedUser(req);
+      if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      const code = decodeURIComponent(pathname.replace("/api/review-coupons/", ""));
+      const body = await readBody(req);
+      const coupons = await getCoupons();
+      const coupon = coupons.find((row) => String(row.code) === code && String(row.customer_email || row.ownerEmail || "").toLowerCase() === user.email.toLowerCase());
+      if (!coupon) { sendJson(res, 404, { message: "Kupon tidak ditemukan." }); return; }
+      if (coupon.used) { sendJson(res, 409, { message: "Kupon sudah digunakan." }); return; }
+      if (useSupabase) {
+        await supabaseRequest(`/review_coupons?code=eq.${encodeURIComponent(code)}&customer_email=eq.${encodeURIComponent(user.email.toLowerCase())}`, {
+          method: "PATCH", headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ used: true, used_for: String(body.usedFor || ""), used_at: new Date().toISOString() }),
+        });
+      } else {
+        await writeJson(couponsPath, coupons.map((row) => row.code === code ? { ...row, used: true, usedFor: String(body.usedFor || ""), usedAt: new Date().toISOString() } : row));
+      }
+      sendJson(res, 200, { message: "Kupon berhasil digunakan." });
+      return;
     }
 
     if (pathname === "/api/products" && req.method === "GET") {

@@ -6,7 +6,7 @@ import { useCart } from "../context/CartContext";
 import { formatRupiah } from "../utils/money";
 import { getSavedProfile } from "./Account";
 
-const TRANSACTION_STORAGE_KEY = "jastip_transactions";
+const TOKEN_KEY = "jastip_customer_token";
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ function Checkout() {
 
   const [customer, setCustomer] = useState(() => {
     const profile = getSavedProfile();
-    return { name: profile?.name || "", phone: profile?.phone || "", address: profile?.address || "" };
+    return { name: profile?.name || "", email: profile?.email || "", phone: profile?.phone || "", address: profile?.address || "" };
   });
 
   const [orderCreated, setOrderCreated] =
@@ -62,6 +62,7 @@ function Checkout() {
           {
             headers: {
               "ngrok-skip-browser-warning": "true",
+              Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) || ""}`,
             },
           }
         );
@@ -142,7 +143,7 @@ function Checkout() {
       const now = new Date().toISOString();
       const newTransaction = {
         id: transactionId,
-        customer: { name: customer.name, phone: customer.phone, address: customer.address },
+        customer: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address },
         items: cart.map((item) => ({ id: item.id, title: item.title, thumbnail: item.thumbnail, price: item.price, quantity: item.quantity, category: item.category, selectedColor: item.selectedColor || "", selectedSize: item.selectedSize || "" })),
         summary: { baseSubtotal, productSubtotal, jastipFee, shippingFee, discountAmount, couponCode: appliedCoupon?.code || "", total: finalTotal },
         payment: { status: "PAID", method: "QR", paidAt: now },
@@ -158,6 +159,7 @@ function Checkout() {
         headers: {
           "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true",
+          Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) || ""}`,
         },
         body: JSON.stringify({
           order: newTransaction,
@@ -171,10 +173,13 @@ function Checkout() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Pesanan gagal dikirim ke server.");
       const savedTransaction = { ...newTransaction, ...data };
-      let previousTransactions = [];
-      try { previousTransactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "[]"); } catch { previousTransactions = []; }
-      localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify([savedTransaction, ...previousTransactions.filter((item) => item.id !== savedTransaction.id)]));
-      if (appliedCoupon) { const profile = getSavedProfile(); const couponKey = `jastip_review_coupons:${String(profile?.email || "guest").toLowerCase()}`; const savedCoupons = JSON.parse(localStorage.getItem(couponKey) || "[]"); localStorage.setItem(couponKey, JSON.stringify(savedCoupons.map((coupon) => coupon.code === appliedCoupon.code ? { ...coupon, used: true, usedFor: transactionId } : coupon))); }
+      if (appliedCoupon) {
+        await fetch(`${API_URL}/api/review-coupons/${encodeURIComponent(appliedCoupon.code)}`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) || ""}`, "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+          body: JSON.stringify({ usedFor: transactionId }),
+        });
+      }
       setTransaction(savedTransaction);
       clearCart();
       setPaymentSuccess(true);
@@ -635,7 +640,7 @@ function Checkout() {
               {appliedCoupon && <div className="mt-4 flex justify-between text-emerald-300"><span>Diskon kupon</span><span>−{formatRupiah(discountAmount)}</span></div>}
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
                 <label className="mb-2 block text-sm font-semibold text-white/80">Kupon ulasan <span className="font-normal text-white/40">(opsional · diskon 2,5%)</span></label>
-                <div className="flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} placeholder="Masukkan kode kupon" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white placeholder:text-white/25"/><button type="button" onClick={() => { const profile = getSavedProfile(); const couponKey = `jastip_review_coupons:${String(profile?.email || "guest").toLowerCase()}`; const list = JSON.parse(localStorage.getItem(couponKey) || "[]"); const match = list.find((item) => item.code === couponInput.trim().toUpperCase() && !item.used && String(item.ownerEmail || "").toLowerCase() === String(profile?.email || "").toLowerCase()); if (!match) { setAppliedCoupon(null); setError("Kupon tidak ditemukan, bukan milik akun ini, atau sudah digunakan."); } else { setAppliedCoupon({ ...match, discountPercent: 2.5 }); setError(""); } }} className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black">Pakai</button>{appliedCoupon && <button type="button" onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="rounded-xl border border-white/20 px-3 py-2 text-xs text-white">Hapus</button>}</div>
+                <div className="flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} placeholder="Masukkan kode kupon" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-white placeholder:text-white/25"/><button type="button" onClick={async () => { try { const token = localStorage.getItem(TOKEN_KEY) || ""; const response = await fetch(`${API_URL}/api/review-coupons`, { headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" } }); const list = await response.json(); if (!response.ok) throw new Error(list.message || "Kupon gagal diperiksa."); const match = list.find((item) => item.code === couponInput.trim().toUpperCase() && !item.used); if (!match) { setAppliedCoupon(null); setError("Kupon tidak ditemukan atau sudah digunakan."); } else { setAppliedCoupon(match); setError(""); } } catch (err) { setAppliedCoupon(null); setError(err.message || "Kupon gagal diperiksa."); } }} className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black">Pakai</button>{appliedCoupon && <button type="button" onClick={() => { setAppliedCoupon(null); setCouponInput(""); }} className="rounded-xl border border-white/20 px-3 py-2 text-xs text-white">Hapus</button>}</div>
                 {appliedCoupon && <p className="mt-2 text-sm text-emerald-300">Kupon aktif: potongan {formatRupiah(discountAmount)}.</p>}
               </div>
 

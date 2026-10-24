@@ -8,7 +8,13 @@ import { useCart } from "../context/CartContext";
 
 const sizes = ["S", "M", "L", "XL", "XXL"];
 const defaultColors = ["Hitam", "Putih", "Abu-abu", "Beige"];
-const colorSwatches = { Hitam: "#111111", Putih: "#ffffff", "Abu-abu": "#d8d8d8", Beige: "#e8decf", Merah: "#b91c1c", Biru: "#2563eb", Hijau: "#15803d", Pink: "#f9a8d4", Cokelat: "#92400e" };
+const colorSwatches = {
+  hitam: "#111111", black: "#111111", putih: "#ffffff", white: "#ffffff",
+  "abu-abu": "#d1d1d1", abuabu: "#d1d1d1", gray: "#d1d1d1", grey: "#d1d1d1",
+  beige: "#e8decf", merah: "#b91c1c", red: "#b91c1c", biru: "#2563eb", blue: "#2563eb",
+  hijau: "#15803d", green: "#15803d", pink: "#f9a8d4", cokelat: "#92400e", brown: "#92400e",
+};
+const swatchFor = (color) => colorSwatches[String(color || "").trim().toLowerCase()] || "#d1d1d1";
 
 function ProductDetail() {
   const { id } = useParams();
@@ -327,7 +333,7 @@ function ProductDetail() {
                     >
                       <span
                         className="block h-full w-full rounded-full border border-black/10"
-                        style={{ backgroundColor: colorSwatches[color] || color }}
+                        style={{ backgroundColor: swatchFor(color) }}
                       />
                     </button>
                   ))}

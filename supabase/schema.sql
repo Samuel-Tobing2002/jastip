@@ -65,3 +65,17 @@ create table if not exists public.customer_accounts (
   id text primary key, name text not null, email text not null unique, phone text not null default '', address text not null default '',
   password_salt text not null, password_hash text not null, created_at timestamptz not null default now()
 );
+
+
+-- Review appreciation coupons are persisted per customer account, not browser storage.
+create table if not exists public.review_coupons (
+  code text primary key,
+  customer_email text not null references public.customer_accounts(email) on update cascade on delete cascade,
+  order_id text not null references public.orders(id) on delete cascade,
+  discount_percent numeric not null default 2.5 check (discount_percent > 0 and discount_percent <= 2.5),
+  used boolean not null default false,
+  used_for text not null default '',
+  created_at timestamptz not null default now(),
+  used_at timestamptz
+);
+create index if not exists review_coupons_customer_idx on public.review_coupons(customer_email);

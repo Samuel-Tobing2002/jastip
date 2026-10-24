@@ -176,17 +176,8 @@ function Account() {
         password: "",
       }));
 
-      await notify({
-        icon: "success",
-        title:
-          mode === "register"
-            ? "Akun berhasil dibuat"
-            : "Login berhasil",
-        text: "Selamat datang di JASTIP!",
-        confirmButtonColor: "#111111",
-      });
-
-      // Setelah berhasil login/registrasi, langsung ke Home.
+      // Langsung pindah ke Home setelah sesi tersimpan; jangan menahan
+      // pengguna di halaman profil di balik modal sukses.
       navigate("/", { replace: true });
     } catch (err) {
       setError(err.message || "Terjadi kesalahan.");

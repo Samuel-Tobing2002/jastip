@@ -1,26 +1,16 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
 export const TRANSACTION_STORAGE_KEY = "jastip_transactions";
-export const readLocalTransactions = () => {
-  try { return JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "[]"); }
-  catch { return []; }
-};
-export const syncTransactions = async (transactions = readLocalTransactions()) => {
-  const synced = await Promise.all(transactions.map(async (transaction) => {
-    try {
-      const response = await fetch(
-        `${API_URL}/api/orders/${encodeURIComponent(transaction.id)}`,
-        {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-      if (!response.ok) return transaction;
-      return { ...transaction, ...(await response.json()) };
-    } catch { return transaction; }
-  }));
-  localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(synced));
-  return synced;
+const TOKEN_KEY = "jastip_customer_token";
+
+export const readLocalTransactions = () => [];
+export const syncTransactions = async () => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return [];
+  const response = await fetch(`${API_URL}/api/my/orders`, {
+    headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
+  });
+  if (!response.ok) throw new Error(response.status === 401 ? "Silakan login kembali." : "Riwayat transaksi gagal dimuat dari server.");
+  return response.json();
 };
 export const orderStatusLabel = (status) => ({
   PROCESSING: "Menunggu approval", APPROVED: "Approved", REJECTED: "Rejected",

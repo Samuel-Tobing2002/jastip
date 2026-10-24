@@ -40,7 +40,7 @@ function Products() {
       const categoryMatch = activeFilter === "all" || product.category === activeFilter;
       const colors = product.colors?.length ? product.colors : [];
       const colorMatch = colorFilter === "all" || colors.some((color) => color.toLowerCase() === colorFilter.toLowerCase());
-      const priceMatch = Number(product.price || 0) * 1000 <= maxPrice;
+      const priceMatch = Number(product.price || 0) <= maxPrice;
       return categoryMatch && colorMatch && priceMatch;
     });
   }, [activeFilter, colorFilter, maxPrice, products]);
@@ -97,9 +97,15 @@ function Products() {
                   {availableColors.map((color) => <option key={color} value={color}>{color}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold uppercase tracking-wider">Harga maksimal: {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(maxPrice)}
-                <input type="range" min="0" max="10000000" step="50000" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="mt-3 block w-full" />
-              </label>
+              <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-[0_8px_24px_rgba(0,0,0,.035)]">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="price-range" className="text-xs font-black uppercase tracking-[.14em] text-black/55">Batas harga</label>
+                  <span className="text-sm font-black tabular-nums">{new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(maxPrice)}</span>
+                </div>
+                <input id="price-range" type="range" min="0" max="10000000" step="50000" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="mt-4 block w-full cursor-pointer accent-black" />
+                <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-black/40"><span>Rp0</span><span>Rp10 jt</span></div>
+                <div className="mt-3 flex items-center justify-between border-t border-black/10 pt-3 text-xs text-black/55"><span>{filteredProducts.length} produk ditemukan</span><button type="button" onClick={() => setMaxPrice(10000000)} className="font-black uppercase tracking-wider text-black underline underline-offset-4">Reset</button></div>
+              </div>
             </div>
           </div>
         </div>
