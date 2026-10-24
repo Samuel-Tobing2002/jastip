@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { ShoppingCart } from "lucide-react";
 
 const navigation = [
   ["Home", "/"],
@@ -127,9 +128,14 @@ function Navbar() {
           <Link
             to="/cart"
             onClick={closeMenu}
+            aria-label={`Keranjang, ${totalItems} item`}
             className="group flex items-center gap-3 border border-black bg-black px-4 py-3 text-white transition hover:bg-[#333]"
           >
-            <span className="text-xl" aria-hidden="true">🛒</span><span className="sr-only">Keranjang</span>
+            <ShoppingCart
+              size={20}
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
 
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-black text-black">
               {totalItems}
