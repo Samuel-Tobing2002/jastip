@@ -36,9 +36,11 @@ function SiteLayout() {
           element={<Home />}
         />
 
-        <Route path="/products" element={<RequireAuth><Products /></RequireAuth>} />
+        
+        <Route path="/products" element={<Products />} />
 
-        <Route path="/products/:id" element={<RequireAuth><ProductDetail /></RequireAuth>} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+
 
         <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
 

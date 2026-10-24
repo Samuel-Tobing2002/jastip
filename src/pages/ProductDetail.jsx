@@ -113,10 +113,17 @@ function ProductDetail() {
   };
 
 
-  const handleRequestJastip = () => {
-    if (!product || Number(product.stock) <= 0 || quantity > Number(product.stock)) return;
 
-    const token = localStorage.getItem("jastip_customer_token");
+const handleRequestJastip = () => {
+  if (
+    !product ||
+    Number(product.stock) <= 0 ||
+    quantity > Number(product.stock)
+  ) {
+    return;
+  }
+
+  const token = localStorage.getItem("jastip_customer_token");
 
     if (!token) {
       navigate("/account", {
@@ -131,6 +138,7 @@ function ProductDetail() {
     addToCart(buildCartProduct(), quantity);
     navigate("/cart");
   };
+
 
   
 
