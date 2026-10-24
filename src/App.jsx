@@ -10,6 +10,8 @@ import Checkout from "./pages/Checkout";
 import MyJastip from "./pages/MyJastip";
 import TransactionHistory from "./pages/TransactionHistory";
 import OrderWhatsApp from "./pages/OrderWhatsApp";
+import Account from "./pages/Account";
+import Reviews from "./pages/Reviews";
 
 function App() {
   return (
@@ -58,6 +60,8 @@ function App() {
           path="/order-whatsapp"
           element={<OrderWhatsApp />}
         />
+        <Route path="/account" element={<Account />} />
+        <Route path="/reviews" element={<Reviews />} />
 
       </Routes>
 

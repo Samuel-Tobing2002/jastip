@@ -7,6 +7,8 @@ function Products() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [colorFilter, setColorFilter] = useState("all");
+  const [maxPrice, setMaxPrice] = useState(10000000);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -34,14 +36,16 @@ function Products() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    if (activeFilter === "all") {
-      return products;
-    }
+    return products.filter((product) => {
+      const categoryMatch = activeFilter === "all" || product.category === activeFilter;
+      const colors = product.colors?.length ? product.colors : [];
+      const colorMatch = colorFilter === "all" || colors.some((color) => color.toLowerCase() === colorFilter.toLowerCase());
+      const priceMatch = Number(product.price || 0) * 1000 <= maxPrice;
+      return categoryMatch && colorMatch && priceMatch;
+    });
+  }, [activeFilter, colorFilter, maxPrice, products]);
 
-    return products.filter(
-      (product) => product.category === activeFilter
-    );
-  }, [activeFilter, products]);
+  const availableColors = [...new Set(products.flatMap((product) => product.colors || []))];
 
   const formatFilter = (filter) =>
     filter === "all"
@@ -85,6 +89,17 @@ function Products() {
                   {formatFilter(filter)}
                 </button>
               ))}
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold uppercase tracking-wider">Warna
+                <select value={colorFilter} onChange={(event) => setColorFilter(event.target.value)} className="mt-2 w-full border border-black/20 bg-white p-3 text-sm normal-case tracking-normal">
+                  <option value="all">Semua warna</option>
+                  {availableColors.map((color) => <option key={color} value={color}>{color}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-bold uppercase tracking-wider">Harga maksimal: {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(maxPrice)}
+                <input type="range" min="0" max="10000000" step="50000" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="mt-3 block w-full" />
+              </label>
             </div>
           </div>
         </div>

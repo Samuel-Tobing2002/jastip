@@ -3,6 +3,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
+import { formatRupiah } from "../utils/money";
+import { getSavedProfile } from "./Account";
 
 const TRANSACTION_STORAGE_KEY = "jastip_transactions";
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
@@ -28,10 +30,9 @@ function Checkout() {
     clearCart,
   } = useCart();
 
-  const [customer, setCustomer] = useState({
-    name: "",
-    phone: "",
-    address: "",
+  const [customer, setCustomer] = useState(() => {
+    const profile = getSavedProfile();
+    return { name: profile?.name || "", phone: profile?.phone || "", address: profile?.address || "" };
   });
 
   const [orderCreated, setOrderCreated] =
@@ -41,6 +42,10 @@ function Checkout() {
     useState(false);
 
   const [error, setError] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const discountAmount = appliedCoupon ? Math.round(productSubtotal * Number(appliedCoupon.discountPercent || 0) / 100) : 0;
+  const finalTotal = Math.max(0, total - discountAmount);
   const [paymentProof, setPaymentProof] = useState(null);
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
@@ -138,8 +143,8 @@ function Checkout() {
       const newTransaction = {
         id: transactionId,
         customer: { name: customer.name, phone: customer.phone, address: customer.address },
-        items: cart.map((item) => ({ id: item.id, title: item.title, thumbnail: item.thumbnail, price: item.price, quantity: item.quantity, category: item.category })),
-        summary: { baseSubtotal, productSubtotal, jastipFee, shippingFee, total },
+        items: cart.map((item) => ({ id: item.id, title: item.title, thumbnail: item.thumbnail, price: item.price, quantity: item.quantity, category: item.category, selectedColor: item.selectedColor || "", selectedSize: item.selectedSize || "" })),
+        summary: { baseSubtotal, productSubtotal, jastipFee, shippingFee, discountAmount, couponCode: appliedCoupon?.code || "", total: finalTotal },
         payment: { status: "PAID", method: "QR", paidAt: now },
         status: "PROCESSING",
         approvalStatus: "PENDING",
@@ -169,6 +174,7 @@ function Checkout() {
       let previousTransactions = [];
       try { previousTransactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "[]"); } catch { previousTransactions = []; }
       localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify([savedTransaction, ...previousTransactions.filter((item) => item.id !== savedTransaction.id)]));
+      if (appliedCoupon) { const savedCoupons = JSON.parse(localStorage.getItem("jastip_review_coupons") || "[]"); localStorage.setItem("jastip_review_coupons", JSON.stringify(savedCoupons.map((coupon) => coupon.code === appliedCoupon.code ? { ...coupon, used: true, usedFor: transactionId } : coupon))); }
       setTransaction(savedTransaction);
       clearCart();
       setPaymentSuccess(true);
@@ -297,6 +303,11 @@ function Checkout() {
           {transaction && (
             <div className="mt-6 grid gap-6 md:grid-cols-2">
 
+              <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <label className="mb-2 block text-sm font-semibold text-white/70">Kupon ulasan (opsional)</label>
+                <div className="flex gap-2"><input value={couponInput} onChange={(event) => setCouponInput(event.target.value.toUpperCase())} placeholder="JASTIP-XXXXXX" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/25"/><button type="button" onClick={() => { const list = JSON.parse(localStorage.getItem("jastip_review_coupons") || "[]"); const match = list.find((item) => item.code === couponInput.trim().toUpperCase() && !item.used); if (!match) { setAppliedCoupon(null); setError("Kupon tidak ditemukan atau sudah digunakan."); } else { setAppliedCoupon(match); setError(""); } }} className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black">Pakai</button></div>
+                {appliedCoupon && <p className="mt-2 text-sm text-emerald-300">Kupon {appliedCoupon.code} aktif: diskon {appliedCoupon.discountPercent}% (−{formatRupiah(discountAmount)}).</p>}
+              </div>
               <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
 
                 <p className="text-xs uppercase tracking-widest text-white/30">
@@ -322,7 +333,7 @@ function Checkout() {
                 </p>
 
                 <p className="mt-3 text-2xl font-semibold">
-                  ${transaction.summary.total.toFixed(2)}
+                  {formatRupiah(transaction.summary.total)}
                 </p>
 
                 <p className="mt-2 text-sm text-emerald-400">
@@ -387,11 +398,7 @@ function Checkout() {
                     </div>
 
                     <span className="text-sm font-medium">
-                      $
-                      {(
-                        item.price *
-                        item.quantity
-                      ).toFixed(2)}
+                      {formatRupiah(item.price * item.quantity)}
                     </span>
 
                   </div>
@@ -525,17 +532,18 @@ function Checkout() {
                 <div>
 
                   <label className="mb-2 block text-sm text-white/50">
-                    Delivery address
+                    Alamat lengkap / detail pengiriman
                   </label>
 
                   <textarea
                     name="address"
                     value={customer.address}
                     onChange={handleChange}
-                    placeholder="Enter your complete delivery address"
+                    placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota/kabupaten, kode pos, dan patokan terdekat"
                     rows={6}
                     className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none transition placeholder:text-white/20 focus:border-white/30"
                   />
+                  <p className="mt-2 text-xs leading-5 text-white/45">Mohon isi alamat secara detail agar pengiriman tidak terkendala. Jika ada perubahan lokasi atau alamat, segera hubungi owner melalui nomor WhatsApp yang tertera di website.</p>
 
                 </div>
 
@@ -587,11 +595,7 @@ function Checkout() {
                     </div>
 
                     <span className="text-sm">
-                      $
-                      {(
-                        item.price *
-                        item.quantity
-                      ).toFixed(2)}
+                      {formatRupiah(item.price * item.quantity)}
                     </span>
 
                   </div>
@@ -607,33 +611,34 @@ function Checkout() {
                 <div className="flex justify-between text-white/50">
                   <span>Modal Produk</span>
                   <span>
-                    ${baseSubtotal.toFixed(2)}
+                    {formatRupiah(baseSubtotal)}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-white/50">
                   <span>Profit Owner</span>
                   <span>
-                    ${jastipFee.toFixed(2)}
+                    {formatRupiah(jastipFee)}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-white/50">
                   <span>Harga Jual Produk</span>
                   <span>
-                    ${productSubtotal.toFixed(2)}
+                    {formatRupiah(productSubtotal)}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-white/50">
                   <span>Estimated Shipping</span>
                   <span>
-                    ${shippingFee.toFixed(2)}
+                    {formatRupiah(shippingFee)}
                   </span>
                 </div>
 
               </div>
 
+              {appliedCoupon && <div className="mt-4 flex justify-between text-emerald-300"><span>Diskon kupon</span><span>−{formatRupiah(discountAmount)}</span></div>}
               <div className="my-6 h-px bg-white/10" />
 
               <div className="flex justify-between">
@@ -643,7 +648,7 @@ function Checkout() {
                 </span>
 
                 <span className="text-xl font-semibold">
-                  ${total.toFixed(2)}
+                  {formatRupiah(finalTotal)}
                 </span>
 
               </div>
@@ -708,7 +713,7 @@ function Checkout() {
                 </p>
 
                 <p className="mt-2 text-4xl font-semibold">
-                  ${total.toFixed(2)}
+                  {formatRupiah(finalTotal)}
                 </p>
 
               </div>

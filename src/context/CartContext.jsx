@@ -32,16 +32,15 @@ export function CartProvider({ children }) {
 
   const addToCart = (product, quantity = 1) => {
     setCart((currentCart) => {
-      const existingProduct = currentCart.find(
-        (item) => item.id === product.id
-      );
+      const cartKey = (item) => `${item.id}::${item.selectedColor || ""}::${item.selectedSize || ""}`;
+      const existingProduct = currentCart.find((item) => cartKey(item) === cartKey(product));
 
       if (existingProduct) {
         return currentCart.map((item) =>
-          item.id === product.id
+          cartKey(item) === cartKey(product)
             ? {
                 ...item,
-                quantity: item.quantity + quantity,
+                quantity: Math.min(Number(item.stock || 0), item.quantity + quantity),
               }
             : item
         );
@@ -51,36 +50,20 @@ export function CartProvider({ children }) {
         ...currentCart,
         {
           ...product,
-          quantity,
+          quantity: Math.min(Number(product.stock || 0), quantity),
         },
       ];
     });
   };
 
-  const removeFromCart = (productId) => {
-    setCart((currentCart) =>
-      currentCart.filter(
-        (item) => item.id !== productId
-      )
-    );
+  const sameVariant = (item, target) => item.id === target.id && (item.selectedColor || "") === (target.selectedColor || "") && (item.selectedSize || "") === (target.selectedSize || "");
+  const removeFromCart = (target) => {
+    setCart((currentCart) => currentCart.filter((item) => typeof target === "string" ? item.id !== target : !sameVariant(item, target)));
   };
 
-  const updateQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-
-    setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity,
-            }
-          : item
-      )
-    );
+  const updateQuantity = (target, quantity) => {
+    if (quantity <= 0) { removeFromCart(target); return; }
+    setCart((currentCart) => currentCart.map((item) => sameVariant(item, target) ? { ...item, quantity: Math.min(Number(item.stock || 0), quantity) } : item));
   };
 
   const clearCart = () => {

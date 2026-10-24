@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatRupiah as formatRupiahValue } from "../utils/money";
 import { Link } from "react-router-dom";
 import { readLocalTransactions, syncTransactions, orderStatusLabel } from "../services/orderService";
 
@@ -33,9 +34,7 @@ function TransactionHistory() {
     );
   };
 
-  const formatPrice = (price) => {
-    return `$${Number(price).toFixed(2)}`;
-  };
+  const formatPrice = (price) => formatRupiahValue(price);
 
   /*
    * Close modal
@@ -392,8 +391,8 @@ function TransactionHistory() {
 
                   <div className="flex items-start gap-4">
 
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg">
-                      $
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xs font-black">
+                      Rp
                     </div>
 
                     <div>

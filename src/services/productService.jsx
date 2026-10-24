@@ -18,6 +18,7 @@ const normalizeProduct = (product) => ({
   basePrice: Number(product.basePrice || product.price || 0),
   rating: Number(product.rating || 4.8),
   stock: Number(product.stock || 0),
+  colors: Array.isArray(product.colors) ? product.colors : [],
   thumbnail: product.thumbnail?.startsWith("/uploads/")
     ? `${API_URL}${product.thumbnail}`
     : product.thumbnail,

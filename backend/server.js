@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +53,9 @@ const uploadDir =
 const productsPath = path.join(dataDir, "products.json");
 const settingsPath = path.join(dataDir, "settings.json");
 const ordersPath = path.join(dataDir, "orders.json");
+const usersPath = path.join(dataDir, "users.json");
+const reviewsPath = path.join(dataDir, "reviews.json");
+const authSessions = new Map();
 
 const PORT = Number(process.env.PORT || 4000);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
@@ -154,6 +158,7 @@ const toProduct = (row) => ({
   rating: Number(row.rating || 4.8),
   thumbnail: row.thumbnail,
   images: row.images || (row.thumbnail ? [row.thumbnail] : []),
+  colors: Array.isArray(row.colors) && row.colors.length ? row.colors : ["Hitam", "Putih", "Abu-abu", "Beige"],
   createdAt: row.created_at || row.createdAt,
 });
 
@@ -278,6 +283,7 @@ const createProduct = async (product) => {
         rating: product.rating,
         thumbnail: product.thumbnail,
         images: product.images,
+        colors: product.colors || [],
         created_at: product.createdAt,
       }),
     });
@@ -371,6 +377,32 @@ const updateOrder = async (id, action, reason = "") => {
     throw new Error(`Aksi ${action} tidak dapat dilakukan ketika status ${order.status}.`);
   }
   if (action === "reject" && !String(reason).trim()) throw new Error("Alasan penolakan wajib diisi.");
+  // Reduce stock exactly once when an APPROVED order is confirmed as purchased.
+  // The status transition guard above prevents the same order decrementing twice.
+  if (action === "purchased") {
+    const products = await getRawProducts();
+    const quantitiesByProduct = new Map();
+    for (const item of order.items || []) quantitiesByProduct.set(item.id, (quantitiesByProduct.get(item.id) || 0) + Number(item.quantity || 0));
+    for (const [productId, quantity] of quantitiesByProduct) {
+      const product = products.find((candidate) => candidate.id === productId);
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || Number(product.stock || 0) < quantity) {
+        throw new Error(`Stok tidak cukup untuk produk ${product?.title || productId}. Stok tersedia: ${product?.stock ?? 0}.`);
+      }
+    }
+    for (const [productId, quantity] of quantitiesByProduct) {
+      const product = products.find((candidate) => candidate.id === productId);
+      const nextStock = Number(product.stock || 0) - quantity;
+      if (useSupabase) {
+        await supabaseRequest(`/products?id=eq.${encodeURIComponent(product.id)}`, {
+          method: "PATCH", headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ stock: nextStock }),
+        });
+      } else {
+        const allProducts = await readJson(productsPath, []);
+        await writeJson(productsPath, allProducts.map((row) => row.id === product.id ? { ...row, stock: nextStock } : row));
+      }
+    }
+  }
   const updated = normalizeOrder({ ...order, ...transition, rejectionReason: action === "reject" ? String(reason).trim() : order.rejectionReason, updatedAt: now });
   if (useSupabase) {
     const rows = await supabaseRequest(`/orders?id=eq.${encodeURIComponent(id)}`, {
@@ -388,6 +420,44 @@ const updateOrder = async (id, action, reason = "") => {
   const saved = orders.map((item) => item.id === id ? updated : item);
   await writeJson(ordersPath, saved);
   return updated;
+};
+
+const passwordDigest = (password, salt) => scryptSync(String(password), salt, 64).toString("hex");
+const publicUser = (user) => ({ id: user.id, name: user.name, email: user.email, phone: user.phone || "", address: user.address || "" });
+const getUsers = async () => {
+  if (useSupabase) {
+    const rows = await supabaseRequest("/customer_accounts?select=*");
+    return rows.map((row) => ({ id: row.id, name: row.name, email: row.email, phone: row.phone, address: row.address, salt: row.password_salt, passwordHash: row.password_hash }));
+  }
+  return readJson(usersPath, []);
+};
+const saveUser = async (user) => {
+  if (useSupabase) {
+    const rows = await supabaseRequest("/customer_accounts", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ id: user.id, name: user.name, email: user.email, phone: user.phone, address: user.address, password_salt: user.salt, password_hash: user.passwordHash }) });
+    return rows[0];
+  }
+  const users = await readJson(usersPath, []);
+  await writeJson(usersPath, [user, ...users]);
+  return user;
+};
+const updateUser = async (user) => {
+  if (useSupabase) {
+    const rows = await supabaseRequest(`/customer_accounts?id=eq.${encodeURIComponent(user.id)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ name: user.name, phone: user.phone, address: user.address }) });
+    return rows[0];
+  }
+  const users = await readJson(usersPath, []);
+  await writeJson(usersPath, users.map((item) => item.id === user.id ? user : item));
+  return user;
+};
+const authenticatedUser = async (req) => {
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const userId = authSessions.get(token);
+  if (!userId) return null;
+  return (await getUsers()).find((user) => user.id === userId) || null;
+};
+const getReviews = async () => {
+  if (useSupabase) return supabaseRequest("/reviews?select=*&order=created_at.desc");
+  return readJson(reviewsPath, []);
 };
 
 const uploadToCloudinary = async ({ fileName, dataUrl }) => {
@@ -555,6 +625,40 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === "/api/auth/register" && req.method === "POST") {
+      const body = await readBody(req);
+      const name = String(body.name || "").trim();
+      const email = String(body.email || "").trim().toLowerCase();
+      const password = String(body.password || "");
+      if (!name || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) { sendJson(res, 400, { message: "Isi nama, email yang valid, dan password minimal 8 karakter." }); return; }
+      const users = await getUsers();
+      if (users.some((user) => user.email.toLowerCase() === email)) { sendJson(res, 409, { message: "Email sudah terdaftar." }); return; }
+      const salt = randomBytes(16).toString("hex");
+      const user = { id: `usr-${randomBytes(12).toString("hex")}`, name, email, phone: String(body.phone || "").trim(), address: String(body.address || "").trim(), salt, passwordHash: passwordDigest(password, salt) };
+      await saveUser(user);
+      const token = randomBytes(32).toString("hex"); authSessions.set(token, user.id);
+      sendJson(res, 201, { token, user: publicUser(user) }); return;
+    }
+    if (pathname === "/api/auth/login" && req.method === "POST") {
+      const body = await readBody(req); const email = String(body.email || "").trim().toLowerCase();
+      const user = (await getUsers()).find((item) => item.email.toLowerCase() === email);
+      if (!user || !timingSafeEqual(Buffer.from(passwordDigest(body.password || "", user.salt), "hex"), Buffer.from(user.passwordHash, "hex"))) { sendJson(res, 401, { message: "Email atau password salah." }); return; }
+      const token = randomBytes(32).toString("hex"); authSessions.set(token, user.id); sendJson(res, 200, { token, user: publicUser(user) }); return;
+    }
+    if (pathname === "/api/auth/me" && req.method === "GET") {
+      const user = await authenticatedUser(req); if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      sendJson(res, 200, { user: publicUser(user) }); return;
+    }
+    if (pathname === "/api/auth/me" && req.method === "PATCH") {
+      const user = await authenticatedUser(req); if (!user) { sendJson(res, 401, { message: "Silakan login kembali." }); return; }
+      const body = await readBody(req); const updated = { ...user, name: String(body.name ?? user.name).trim(), phone: String(body.phone ?? user.phone).trim(), address: String(body.address ?? user.address).trim() };
+      if (!updated.name) { sendJson(res, 400, { message: "Nama wajib diisi." }); return; }
+      await updateUser(updated); sendJson(res, 200, { user: publicUser(updated) }); return;
+    }
+    if (pathname === "/api/auth/logout" && req.method === "POST") {
+      const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""); authSessions.delete(token); sendJson(res, 200, { message: "Logout berhasil." }); return;
+    }
+
     if (pathname === "/api/admin/login" && req.method === "POST") {
       const body = await readBody(req);
       if (body.username === ADMIN_USERNAME && body.password === ADMIN_PASSWORD) {
@@ -576,6 +680,16 @@ const server = createServer(async (req, res) => {
       if (!body.paymentProof?.dataUrl) {
         sendJson(res, 400, { message: "Bukti pembayaran wajib diunggah." });
         return;
+      }
+      const currentProducts = await getRawProducts();
+      const requestedQuantities = new Map();
+      for (const item of incoming.items) requestedQuantities.set(item.id, (requestedQuantities.get(item.id) || 0) + Number(item.quantity || 0));
+      for (const [productId, quantity] of requestedQuantities) {
+        const product = currentProducts.find((candidate) => candidate.id === productId);
+        if (!product || !Number.isInteger(quantity) || quantity < 1 || Number(product.stock || 0) < quantity) {
+          sendJson(res, 409, { message: `Stok tidak cukup untuk ${product?.title || productId}. Stok tersedia: ${product?.stock ?? 0}.` });
+          return;
+        }
       }
       const proofUrl = await saveUploadedImage(body.paymentProof);
       const order = normalizeOrder({ ...incoming, payment: { ...(incoming.payment || {}), status: "PAID", method: "QR", proofUrl, paidAt: incoming.payment?.paidAt || new Date().toISOString() }, status: "PROCESSING", approvalStatus: "PENDING", createdAt: incoming.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
@@ -625,6 +739,29 @@ const server = createServer(async (req, res) => {
       };
       sendJson(res, 200, await saveSettings(settings));
       return;
+    }
+
+    if (pathname === "/api/reviews" && req.method === "GET") {
+      const rows = await getReviews();
+      sendJson(res, 200, rows.map((row) => ({ id: row.id, orderId: row.order_id || row.orderId, productId: row.product_id || row.productId, customerName: row.customer_name || row.customerName, rating: Number(row.rating), comment: row.comment || "", createdAt: row.created_at || row.createdAt })));
+      return;
+    }
+    if (pathname === "/api/reviews" && req.method === "POST") {
+      const body = await readBody(req);
+      const orderId = String(body.orderId || ""); const productId = String(body.productId || "");
+      const order = (await getOrders()).find((item) => item.id === orderId);
+      if (!order || String(order.status).toUpperCase() !== "DELIVERED" || !(order.items || []).some((item) => item.id === productId)) { sendJson(res, 403, { message: "Ulasan hanya dapat diberikan untuk produk dari pesanan yang sudah Delivered." }); return; }
+      const rating = Number(body.rating);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) { sendJson(res, 400, { message: "Rating harus 1 sampai 5 bintang." }); return; }
+      const existing = await getReviews();
+      if (existing.some((row) => String(row.order_id || row.orderId) === orderId && String(row.product_id || row.productId) === productId)) { sendJson(res, 409, { message: "Ulasan untuk produk pada pesanan ini sudah pernah dikirim." }); return; }
+      const item = order.items.find((entry) => entry.id === productId);
+      const review = { id: `rev-${randomBytes(10).toString("hex")}`, orderId, productId, customerName: String(order.customer?.name || "Pelanggan"), productTitle: item.title, rating, comment: String(body.comment || "").trim().slice(0, 1500), createdAt: new Date().toISOString() };
+      if (useSupabase) {
+        const rows = await supabaseRequest("/reviews", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ id: review.id, order_id: orderId, product_id: productId, customer_name: review.customerName, rating, comment: review.comment, created_at: review.createdAt }) });
+        sendJson(res, 201, { ...review, ...(rows[0] || {}) }); return;
+      }
+      await writeJson(reviewsPath, [review, ...existing]); sendJson(res, 201, review); return;
     }
 
     if (pathname === "/api/products" && req.method === "GET") {
@@ -721,6 +858,7 @@ const server = createServer(async (req, res) => {
         basePrice,
         stock,
         rating,
+        colors: Array.isArray(body.colors) ? body.colors.map((color) => String(color).trim()).filter(Boolean) : String(body.colors || "").split(",").map((color) => color.trim()).filter(Boolean),
         thumbnail: uploadedImages[0],
         images: uploadedImages,
         createdAt: new Date().toISOString(),
@@ -729,6 +867,40 @@ const server = createServer(async (req, res) => {
       const savedProduct = await createProduct(product);
 
       sendJson(res, 201, savedProduct);
+      return;
+    }
+
+    if (pathname.startsWith("/api/admin/products/") && req.method === "PUT") {
+      if (!requireAdmin(req, res)) return;
+      const id = decodeURIComponent(pathname.replace("/api/admin/products/", ""));
+      const body = await readBody(req);
+      const current = (await getRawProducts()).find((item) => item.id === id);
+      if (!current) { sendJson(res, 404, { message: "Produk tidak ditemukan." }); return; }
+      const stock = Number(body.stock ?? current.stock);
+      const basePrice = Number(body.basePrice ?? current.basePrice);
+      if (!Number.isInteger(stock) || stock < 0 || !Number.isFinite(basePrice) || basePrice <= 0) {
+        sendJson(res, 400, { message: "Stok harus bilangan bulat >= 0 dan harga modal harus lebih dari 0." }); return;
+      }
+      const updated = { ...current,
+        title: String(body.title ?? current.title).trim(),
+        description: String(body.description ?? current.description).trim(),
+        category: String(body.category ?? current.category).trim(),
+        tag: formatTag(String(body.category ?? current.category)),
+        stock, basePrice,
+        rating: Number(body.rating ?? current.rating),
+        colors: Array.isArray(body.colors) ? body.colors.map((color) => String(color).trim()).filter(Boolean) : current.colors || [],
+      };
+      if (useSupabase) {
+        const rows = await supabaseRequest(`/products?id=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH", headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ title: updated.title, description: updated.description, category: updated.category, tag: updated.tag, stock: updated.stock, base_price: updated.basePrice, rating: updated.rating, colors: updated.colors }),
+        });
+        sendJson(res, rows[0] ? 200 : 404, rows[0] ? withSellingPrice(toProduct(rows[0]), await getSettings()) : { message: "Produk tidak ditemukan." });
+        return;
+      }
+      const allProducts = await readJson(productsPath, []);
+      await writeJson(productsPath, allProducts.map((item) => item.id === id ? updated : item));
+      sendJson(res, 200, withSellingPrice(updated, await getSettings()));
       return;
     }
 

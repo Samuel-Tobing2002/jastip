@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { formatRupiah } from "../utils/money";
 import { readLocalTransactions, syncTransactions, orderStatusLabel } from "../services/orderService";
 
 const TRANSACTION_STORAGE_KEY =
@@ -175,11 +176,7 @@ function MyJastip() {
                       <div className="text-right">
 
                         <p className="font-semibold">
-                          $
-                          {(
-                            item.price *
-                            item.quantity
-                          ).toFixed(2)}
+                          {formatRupiah(item.price * item.quantity)}
                         </p>
 
                         <p className="mt-1 text-xs text-white/30">
@@ -221,8 +218,7 @@ function MyJastip() {
                     </p>
 
                     <p className="mt-1 text-2xl font-semibold">
-                      $
-                      {transaction.summary.total.toFixed(2)}
+                      {formatRupiah(transaction.summary.total)}
                     </p>
 
                   </div>

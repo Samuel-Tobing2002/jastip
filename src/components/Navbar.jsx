@@ -7,6 +7,7 @@ const navigation = [
   ["Shop", "/products"],
   ["Order WA", "/order-whatsapp"],
   ["History", "/history"],
+  ["Reviews", "/reviews"],
   ["Guide", "/#how-it-works"],
 ];
 
@@ -113,6 +114,7 @@ function Navbar() {
         </Link>
 
         <div className="flex items-center justify-end gap-3">
+          <Link to="/account" className={`text-xs font-semibold uppercase tracking-[0.16em] ${isMobile ? "hidden" : "block"}`}>Akun</Link>
           <Link
             to="/jastip"
             className={`text-xs font-semibold uppercase tracking-[0.16em] ${
@@ -127,9 +129,7 @@ function Navbar() {
             onClick={closeMenu}
             className="group flex items-center gap-3 border border-black bg-black px-4 py-3 text-white transition hover:bg-[#333]"
           >
-            <span className="text-xs font-semibold uppercase tracking-[0.12em]">
-              Bag
-            </span>
+            <span className="text-xl" aria-hidden="true">🛒</span><span className="sr-only">Keranjang</span>
 
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-black text-black">
               {totalItems}
@@ -141,7 +141,7 @@ function Navbar() {
       {isMobile && menuOpen && (
         <div className="fixed left-0 right-0 top-20 z-40 border-t border-black/10 bg-[#f5f3ef] px-6 pb-6 shadow-[0_24px_60px_rgba(0,0,0,0.12)]">
           <nav className="mx-auto flex max-w-7xl flex-col">
-            {[...navigation, ["Orders", "/jastip"]].map((item) =>
+            {[...navigation, ["Akun", "/account"], ["Orders", "/jastip"]].map((item) =>
               renderNavLink(
                 item,
                 "border-b border-black/10 py-5 text-sm font-black uppercase tracking-[0.18em]"

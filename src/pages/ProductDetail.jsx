@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { getProductById, getProducts } from "../services/productService";
 import ProductCard from "../components/ProductCard";
+import { formatRupiah } from "../utils/money";
 import { useCart } from "../context/CartContext";
 
 const sizes = ["S", "M", "L", "XL", "XXL"];
-const colors = ["#2f3136", "#d8d8d8", "#e8decf", "#050505"];
+const defaultColors = ["Hitam", "Putih", "Abu-abu", "Beige"];
+const colorSwatches = { Hitam: "#111111", Putih: "#ffffff", "Abu-abu": "#d8d8d8", Beige: "#e8decf", Merah: "#b91c1c", Biru: "#2563eb", Hijau: "#15803d", Pink: "#f9a8d4", Cokelat: "#92400e" };
 
 function ProductDetail() {
   const { id } = useParams();
@@ -21,7 +23,7 @@ function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState("");
   const [thumbnailStart, setThumbnailStart] = useState(0);
   const [selectedSize, setSelectedSize] = useState("M");
-  const [selectedColor, setSelectedColor] = useState(colors[0]);
+  const [selectedColor, setSelectedColor] = useState(defaultColors[0]);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ function ProductDetail() {
         ]);
 
         setProduct(productData);
+        setSelectedColor((productData.colors || defaultColors)[0] || defaultColors[0]);
         const firstImage = productData.images?.[0] || productData.thumbnail || "";
         setSelectedImage(firstImage);
         setThumbnailStart(0);
@@ -56,10 +59,8 @@ function ProductDetail() {
   }, [id]);
 
   const handleIncrease = () => {
-    if (!product) return;
-    setQuantity((current) =>
-      Math.min(current + 1, product.stock || 99)
-    );
+    if (!product || Number(product.stock) <= 0) return;
+    setQuantity((current) => Math.min(current + 1, Number(product.stock)));
   };
 
   const handleDecrease = () => {
@@ -73,7 +74,7 @@ function ProductDetail() {
   });
 
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product || Number(product.stock) <= 0 || quantity > Number(product.stock)) return;
 
     addToCart(buildCartProduct(), quantity);
     setAdded(true);
@@ -84,7 +85,7 @@ function ProductDetail() {
   };
 
   const handleRequestJastip = () => {
-    if (!product) return;
+    if (!product || Number(product.stock) <= 0 || quantity > Number(product.stock)) return;
 
     addToCart(buildCartProduct(), quantity);
     navigate("/cart");
@@ -284,12 +285,12 @@ function ProductDetail() {
 
             <div className="mt-7 flex flex-wrap items-end gap-4">
               <span className="text-4xl font-black">
-                ${product.price.toFixed(2)}
+                {formatRupiah(product.price)}
               </span>
               {product.discountPercentage > 0 && (
                 <>
                   <span className="mb-1 text-lg font-semibold text-black/35 line-through">
-                    ${originalPrice.toFixed(2)}
+                    {formatRupiah(originalPrice)}
                   </span>
                   <span className="mb-1 bg-black px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-white">
                     {product.discountPercentage.toFixed(0)}% Off
@@ -307,11 +308,11 @@ function ProductDetail() {
                 <p className="text-sm font-black">
                   Color:{" "}
                   <span className="font-semibold text-black/60">
-                    Editorial Neutral
+                    {selectedColor}
                   </span>
                 </p>
                 <div className="mt-4 flex gap-3">
-                  {colors.map((color) => (
+                  {(product.colors?.length ? product.colors : defaultColors).map((color) => (
                     <button
                       key={color}
                       type="button"
@@ -322,10 +323,11 @@ function ProductDetail() {
                           : "border-transparent"
                       }`}
                       aria-label={`Select color ${color}`}
+                      title={color}
                     >
                       <span
                         className="block h-full w-full rounded-full border border-black/10"
-                        style={{ backgroundColor: color }}
+                        style={{ backgroundColor: colorSwatches[color] || color }}
                       />
                     </button>
                   ))}
@@ -366,7 +368,7 @@ function ProductDetail() {
               </div>
 
               <div>
-                <p className="mb-3 text-sm font-black">Quantity</p>
+                <p className="mb-3 text-sm font-black">Quantity · Stok tersedia: {product.stock}</p>
                 <div className="flex w-fit items-center border border-black/15 bg-white">
                   <button
                     type="button"
@@ -381,7 +383,8 @@ function ProductDetail() {
                   <button
                     type="button"
                     onClick={handleIncrease}
-                    className="h-12 w-12 text-xl"
+                    className="h-12 w-12 text-xl disabled:cursor-not-allowed disabled:opacity-30"
+                    disabled={quantity >= Number(product.stock)}
                   >
                     +
                   </button>
@@ -396,16 +399,16 @@ function ProductDetail() {
                     Estimated subtotal
                   </p>
                   <p className="mt-1 text-sm text-black/55">
-                    {quantity} x ${product.price.toFixed(2)}
+                    {quantity} x {formatRupiah(product.price)}
                   </p>
                 </div>
                 <span className="text-2xl font-black">
-                  ${totalPrice.toFixed(2)}
+                  {formatRupiah(totalPrice)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_80px]">
+            {Number(product.stock) <= 0 ? <div className="mt-5 border border-black/15 bg-[#e5e5e5] p-5 text-center text-sm font-black tracking-[0.2em] text-black/60">SOLD OUT · STOK HABIS</div> : <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_80px]">
               <button
                 type="button"
                 onClick={handleRequestJastip}
@@ -417,11 +420,11 @@ function ProductDetail() {
                 type="button"
                 onClick={handleAddToCart}
                 className="border border-black bg-white px-5 py-5 text-2xl transition hover:bg-black hover:text-white"
-                aria-label="Add to bag"
+                aria-label="Tambah ke keranjang"
               >
-                ♥
+                🛒
               </button>
-            </div>
+            </div>}
 
             {added && (
               <div className="mt-4 border border-black bg-white p-4 text-sm font-semibold">

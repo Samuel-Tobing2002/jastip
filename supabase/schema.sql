@@ -16,6 +16,7 @@ create table if not exists public.products (
   rating numeric not null default 4.8,
   thumbnail text not null,
   images jsonb not null default '[]'::jsonb,
+  colors jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -44,3 +45,23 @@ create table if not exists public.orders (
 );
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 create index if not exists orders_status_idx on public.orders (status);
+
+-- Safe migration for existing deployments.
+alter table public.products add column if not exists colors jsonb not null default '[]'::jsonb;
+
+create table if not exists public.reviews (
+  id text primary key,
+  order_id text not null references public.orders(id) on delete cascade,
+  product_id text not null references public.products(id) on delete cascade,
+  customer_name text not null,
+  rating integer not null check (rating between 1 and 5),
+  comment text not null default '',
+  created_at timestamptz not null default now(),
+  unique(order_id, product_id)
+);
+create index if not exists reviews_product_idx on public.reviews(product_id);
+
+create table if not exists public.customer_accounts (
+  id text primary key, name text not null, email text not null unique, phone text not null default '', address text not null default '',
+  password_salt text not null, password_hash text not null, created_at timestamptz not null default now()
+);

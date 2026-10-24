@@ -29,7 +29,7 @@ let message = "";
 let error = "";
 let activeSection = "products";
 
-const money = (value) => `$${Number(value || 0).toFixed(2)}`;
+const money = (value) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0) * 1000);
 const imageUrl = (value) =>
   value?.startsWith("/uploads/") ? `${API_URL}${value}` : value;
 
@@ -148,6 +148,13 @@ const statusLabel = (status) => ({ PROCESSING: "Menunggu review", APPROVED: "App
 const renderDashboard = () => {
   const totalBase = products.reduce((sum, item) => sum + Number(item.basePrice || 0), 0);
   const totalSell = products.reduce((sum, item) => sum + Number(item.price || 0), 0);
+  const orderQuery = window.orderQuery || "";
+  const orderStatusFilter = window.orderStatusFilter || "ALL";
+  const visibleOrders = orders.filter((order) => {
+    const q = orderQuery.toLocaleLowerCase("id-ID");
+    const searchable = [order.id, order.customer?.name, order.customer?.phone, order.customer?.address, ...(order.items || []).map((item) => item.title)].join(" ").toLocaleLowerCase("id-ID");
+    return (!q || searchable.includes(q)) && (orderStatusFilter === "ALL" || String(order.status).toUpperCase() === orderStatusFilter);
+  });
 
   app.innerHTML = `
     <section class="shell">
@@ -206,9 +213,13 @@ const renderDashboard = () => {
                   <input name="stock" type="number" min="0" value="1" />
                 </label>
               </div>
+              <label class="field">
+                <span>Warna tersedia (pisahkan dengan koma)</span>
+                <input name="colors" placeholder="Hitam, Putih, Abu-abu, Beige" />
+              </label>
               <div class="row">
                 <label class="field">
-                  <span>Harga modal</span>
+                  <span>Harga modal (ribuan Rupiah)</span>
                   <input name="basePrice" type="number" min="0" step="0.01" required placeholder="100" />
                 </label>
                 <label class="field">
@@ -245,7 +256,7 @@ const renderDashboard = () => {
                       <h3>${product.title}</h3>
                       <p>${product.category} | Modal ${money(product.basePrice)} | Jual ${money(product.price)}</p>
                     </div>
-                    <button class="button danger" data-delete="${product.id}" type="button">Delete</button>
+                    <div class="product-actions"><span class="stock-pill ${Number(product.stock) <= 0 ? "sold-out" : ""}">Stok: ${Number(product.stock || 0)}${Number(product.stock) <= 0 ? " · SOLD OUT" : ""}</span><button class="button secondary" data-edit="${escapeHtml(product.id)}" type="button">Edit</button><button class="button danger" data-delete="${escapeHtml(product.id)}" type="button">Delete</button></div>
                   </article>
                 `
               )
@@ -265,18 +276,19 @@ const renderDashboard = () => {
           </div>
           <button class="button secondary" id="refreshOrders" type="button">Refresh orders</button>
         </div>
+        <div class="order-filters"><input id="orderSearch" type="search" value="${escapeHtml(orderQuery)}" placeholder="Cari nama, nomor HP, alamat, ID, atau produk..."/><select id="orderStatusFilter"><option value="ALL" ${orderStatusFilter === "ALL" ? "selected" : ""}>Semua status</option>${["PROCESSING","APPROVED","REJECTED","PURCHASED","DELIVERED"].map((status) => `<option value="${status}" ${orderStatusFilter === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}</select></div>
         ${ordersError ? `<div class="message error" style="margin-top:18px">Pesanan belum dapat dimuat: ${escapeHtml(ordersError)}. Jika menggunakan Supabase, jalankan supabase/schema.sql terbaru untuk membuat tabel orders.</div>` : ""}
-        ${orders.length ? `<div class="orders-list">${orders.map((order) => {
+        ${visibleOrders.length ? `<div class="orders-list">${visibleOrders.map((order) => {
           const status = String(order.status || "PROCESSING").toUpperCase();
           const proof = order.payment?.proofUrl ? imageUrl(order.payment.proofUrl) : "";
-          const itemSummary = (order.items || []).map((item) => `${item.title} × ${item.quantity}`).join(", ");
+          const itemSummary = (order.items || []).map((item) => `${item.title} × ${item.quantity}${item.selectedColor ? ` · Warna: ${item.selectedColor}` : ""}${item.selectedSize ? ` · Ukuran: ${item.selectedSize}` : ""}`).join(", ");
           const total = Number(order.summary?.total || 0);
           return `<article class="order-card">
             <div class="order-card-top">
               <div><p class="order-id">${escapeHtml(order.id)}</p><p class="order-date">${new Date(order.createdAt).toLocaleString("id-ID")}</p></div>
               <span class="order-status status-${status.toLowerCase()}">${escapeHtml(statusLabel(status))}</span>
             </div>
-            <div class="order-summary"><div><strong>${escapeHtml(order.customer?.name || "Pelanggan")}</strong><p>${escapeHtml(itemSummary)}</p><p>${escapeHtml(order.customer?.phone || "-")}</p></div><strong>${money(total)}</strong></div>
+            <div class="order-summary"><div><strong>${escapeHtml(order.customer?.name || "Pelanggan")}</strong><p>${escapeHtml(itemSummary)}</p><p>${escapeHtml(order.customer?.phone || "-")}</p><p>${escapeHtml(order.customer?.address || "-")}</p></div><strong>${money(total)}</strong></div>
             <details class="order-details"><summary>Lihat detail pemesan & bukti pembayaran</summary>
               <div class="order-detail-grid"><div><span>Nama</span><strong>${escapeHtml(order.customer?.name || "-")}</strong></div><div><span>Telepon</span><strong>${escapeHtml(order.customer?.phone || "-")}</strong></div><div class="full"><span>Alamat</span><strong>${escapeHtml(order.customer?.address || "-")}</strong></div><div><span>Subtotal produk</span><strong>${money(order.summary?.productSubtotal)}</strong></div><div><span>Jastip + pengiriman</span><strong>${money(Number(order.summary?.jastipFee || 0) + Number(order.summary?.shippingFee || 0))}</strong></div><div><span>Total dibayar</span><strong>${money(total)}</strong></div><div><span>Metode pembayaran</span><strong>${escapeHtml(order.payment?.method || "QR")}</strong></div></div>
               ${proof ? `<a class="proof-link" href="${proof}" target="_blank" rel="noreferrer"><img class="proof-image" src="${proof}" alt="Bukti pembayaran ${escapeHtml(order.id)}"/><span>Buka bukti pembayaran ukuran penuh ↗</span></a>` : `<p class="message error">Bukti pembayaran belum tersedia.</p>`}
@@ -364,6 +376,7 @@ const renderDashboard = () => {
           stock: Number(formData.get("stock")),
           basePrice: Number(formData.get("basePrice")),
           rating: Number(formData.get("rating")),
+          colors: String(formData.get("colors") || "").split(",").map((color) => color.trim()).filter(Boolean),
           imageUploads,
         }),
       });
@@ -375,6 +388,23 @@ const renderDashboard = () => {
     } catch (err) {
       showMessage(err.message, true);
     }
+  });
+
+  document.querySelectorAll("[data-edit]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const product = products.find((item) => item.id === button.dataset.edit);
+      if (!product) return;
+      const title = window.prompt("Nama produk:", product.title); if (title === null) return;
+      const description = window.prompt("Deskripsi:", product.description || ""); if (description === null) return;
+      const category = window.prompt("Kategori:", product.category || "fashion"); if (category === null) return;
+      const stockText = window.prompt("Stok tersedia (isi 0 jika habis):", String(product.stock ?? 0)); if (stockText === null) return;
+      const priceText = window.prompt("Harga modal (ribuan Rupiah):", String(product.basePrice ?? 0)); if (priceText === null) return;
+      const colorsText = window.prompt("Warna dipisahkan koma:", (product.colors || []).join(", ")); if (colorsText === null) return;
+      try {
+        await request(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PUT", body: JSON.stringify({ title, description, category, stock: Number(stockText), basePrice: Number(priceText), rating: Number(product.rating || 4.8), colors: colorsText.split(",").map((c) => c.trim()).filter(Boolean) }) });
+        await loadDashboard(); showMessage("Produk berhasil diperbarui.");
+      } catch (err) { showMessage(err.message, true); }
+    });
   });
 
   document.querySelectorAll("[data-delete]").forEach((button) => {
@@ -391,6 +421,9 @@ const renderDashboard = () => {
     try { await loadDashboard(); renderDashboard(); }
     catch (err) { showMessage(err.message, true); }
   });
+
+  document.querySelector("#orderSearch")?.addEventListener("input", (event) => { window.orderQuery = event.target.value; const pos = event.target.selectionStart; renderDashboard(); const next = document.querySelector("#orderSearch"); next?.focus(); next?.setSelectionRange(pos, pos); });
+  document.querySelector("#orderStatusFilter")?.addEventListener("change", (event) => { window.orderStatusFilter = event.target.value; renderDashboard(); });
 
   document.querySelectorAll("[data-order-action]").forEach((button) => {
     button.addEventListener("click", async () => {

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { formatRupiah } from "../utils/money";
 
 function Cart() {
   const navigate = useNavigate();
@@ -20,13 +21,13 @@ function Cart() {
       <main className="min-h-screen bg-[#f5f3ef] px-6 pb-24 pt-36 text-[#0c0c0c] md:pt-40">
         <div className="mx-auto max-w-5xl border border-black/10 bg-white p-10 md:p-14">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-black/45">
-            JASTIP Bag
+            Keranjang JASTIP
           </p>
           <h1 className="mt-5 text-5xl font-black uppercase leading-none md:text-7xl">
-            Your bag is empty
+            Keranjang kamu kosong
           </h1>
           <p className="mt-5 max-w-xl leading-7 text-black/60">
-            Pilih produk fashion dulu, lalu request jastip dari bag kamu.
+            Pilih produk fashion dulu, lalu request jastip dari keranjang kamu.
           </p>
           <Link
             to="/products"
@@ -44,10 +45,10 @@ function Cart() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-10 border-b border-black/10 pb-8">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-black/45">
-            JASTIP Bag
+            Keranjang JASTIP
           </p>
           <h1 className="mt-4 text-5xl font-black uppercase md:text-7xl">
-            Your requests
+            Keranjang Belanja
           </h1>
         </div>
 
@@ -55,7 +56,7 @@ function Cart() {
           <div className="space-y-4">
             {cart.map((item) => (
               <div
-                key={item.id}
+                key={`${item.id}-${item.selectedColor || ""}-${item.selectedSize || ""}`}
                 className="grid gap-5 border border-black/10 bg-white p-5 sm:grid-cols-[140px_1fr]"
               >
                 <img
@@ -75,14 +76,14 @@ function Cart() {
                       </h2>
                       {(item.selectedSize || item.selectedColor) && (
                         <p className="mt-2 text-sm text-black/50">
-                          Size {item.selectedSize || "M"}
+                          {item.selectedSize ? `Ukuran: ${item.selectedSize}` : ""} {item.selectedColor ? `· Warna: ${item.selectedColor}` : ""}
                         </p>
                       )}
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => removeFromCart(item.id)}
+                      onClick={() => removeFromCart(item)}
                       className="h-fit text-xs font-black uppercase tracking-[0.14em] text-black/40 transition hover:text-black"
                     >
                       Remove
@@ -94,7 +95,7 @@ function Cart() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.id, item.quantity - 1)
+                          updateQuantity(item, item.quantity - 1)
                         }
                         className="h-10 w-10 text-xl"
                       >
@@ -106,7 +107,7 @@ function Cart() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.id, item.quantity + 1)
+                          updateQuantity(item, item.quantity + 1)
                         }
                         className="h-10 w-10 text-xl"
                       >
@@ -115,7 +116,7 @@ function Cart() {
                     </div>
 
                     <span className="text-xl font-black">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      {formatRupiah(item.price * item.quantity)}
                     </span>
                   </div>
                 </div>
@@ -131,24 +132,24 @@ function Cart() {
             <div className="mt-8 space-y-4 text-sm">
               <div className="flex justify-between text-black/60">
                 <span>Modal Produk</span>
-                <span>${baseSubtotal.toFixed(2)}</span>
+                <span>{formatRupiah(baseSubtotal)}</span>
               </div>
               <div className="flex justify-between text-black/60">
                 <span>Profit Owner</span>
-                <span>${jastipFee.toFixed(2)}</span>
+                <span>{formatRupiah(jastipFee)}</span>
               </div>
               <div className="flex justify-between text-black/60">
                 <span>Harga Jual Produk</span>
-                <span>${productSubtotal.toFixed(2)}</span>
+                <span>{formatRupiah(productSubtotal)}</span>
               </div>
               <div className="flex justify-between text-black/60">
-                <span>Estimated Shipping</span>
-                <span>${shippingFee.toFixed(2)}</span>
+                <span>Estimasi Pengiriman</span>
+                <span>{formatRupiah(shippingFee)}</span>
               </div>
               <div className="my-5 h-px bg-black/10" />
               <div className="flex justify-between text-lg">
-                <span className="font-black">Estimated Total</span>
-                <span className="font-black">${total.toFixed(2)}</span>
+                <span className="font-black">Total Estimasi</span>
+                <span className="font-black">{formatRupiah(total)}</span>
               </div>
             </div>
 
@@ -157,7 +158,7 @@ function Cart() {
               onClick={() => navigate("/checkout")}
               className="mt-8 w-full bg-black py-4 text-xs font-black uppercase tracking-[0.18em] text-white transition hover:bg-[#333]"
             >
-              Continue Checkout
+              Lanjut ke Pembayaran
             </button>
           </aside>
         </div>

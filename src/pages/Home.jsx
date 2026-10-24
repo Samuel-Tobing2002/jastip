@@ -43,7 +43,7 @@ function Home() {
               <p className="max-w-md text-base leading-7 text-black/60">
                 Titip beli pakaian, sepatu, tas, dan aksesori pilihan dari
                 katalog fashion yang dikelola langsung dari backoffice. Pilih
-                item, masukin ke bag, lalu kami bantu proses jastip sampai ke
+                item, masukin ke keranjang, lalu kami bantu proses jastip sampai ke
                 alamat kamu.
               </p>
 
@@ -221,7 +221,7 @@ function Home() {
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
               ["01", "Pilih Produk", "Cari item fashion dari katalog website."],
-              ["02", "Masukkan Bag", "Atur jumlah, cek estimasi, lalu request jastip."],
+              ["02", "Masukkan Keranjang", "Atur jumlah, cek estimasi, lalu request jastip."],
               ["03", "Kami Proses", "Checkout dan pantau pesanan dari halaman Orders."],
             ].map(([number, title, copy]) => (
               <div
