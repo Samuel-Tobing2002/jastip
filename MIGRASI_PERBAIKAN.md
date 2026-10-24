@@ -23,3 +23,11 @@ Pesanan lama yang dibuat sebelum perubahan dan tidak memiliki `customer.email` d
 
 ## Catatan keamanan
 File `.env`, folder `.git`, build `dist`, dan file lokal yang berpotensi berisi data pelanggan sengaja tidak disertakan dalam ZIP hasil perbaikan. Gunakan `.env` lokal milik sendiri dan jangan commit file rahasia.
+
+## Ulasan pada halaman detail produk
+
+- Halaman detail produk kini menampilkan bagian `Ulasan Produk` tepat di bawah bagian `You May Also Like`.
+- Daftar ulasan publik diambil dari endpoint `GET /api/products/:id/reviews`. Endpoint ini hanya mengirim nama depan, rating, komentar, dan tanggal; tidak mengirim email atau data alamat pelanggan.
+- Tombol `Tulis ulasan` membuka halaman Reviews. Ulasan hanya bisa dikirim oleh pelanggan yang login dan memiliki pesanan produk tersebut dengan status `Delivered`.
+- Pastikan backend yang sedang digunakan Vercel memiliki versi terbaru dari `backend/server.js`, frontend dibuild ulang, dan tabel `reviews` serta `review_coupons` sudah dibuat melalui `supabase/schema.sql`.
+- Jika halaman Reviews menampilkan `Kupon belum dapat dimuat dari server`, cek log backend untuk `GET /api/review-coupons`. Penyebab umum adalah tabel `review_coupons` belum dibuat di project Supabase yang dipakai backend atau backend deployment belum diperbarui.

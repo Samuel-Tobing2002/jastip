@@ -845,6 +845,29 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Public product reviews: expose only display-safe fields, never order/customer account details.
+    const publicProductReviewsMatch = pathname.match(/^\/api\/products\/([^/]+)\/reviews$/);
+    if (publicProductReviewsMatch && req.method === "GET") {
+      const productId = decodeURIComponent(publicProductReviewsMatch[1]);
+      const rows = await getReviews();
+      const publicReviews = rows
+        .filter((row) => String(row.product_id || row.productId) === productId)
+        .map((row) => {
+          const fullName = String(row.customer_name || row.customerName || "Pelanggan").trim();
+          const firstName = fullName.split(/\s+/)[0] || "Pelanggan";
+          return {
+            id: row.id,
+            productId: row.product_id || row.productId,
+            customerName: firstName,
+            rating: Number(row.rating || 0),
+            comment: row.comment || "",
+            createdAt: row.created_at || row.createdAt,
+          };
+        });
+      sendJson(res, 200, publicReviews);
+      return;
+    }
+
     if (pathname === "/api/products" && req.method === "GET") {
       const category = url.searchParams.get("category");
       const products = await getProducts();

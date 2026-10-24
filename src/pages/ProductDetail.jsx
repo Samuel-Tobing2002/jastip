@@ -23,6 +23,8 @@ function ProductDetail() {
 
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
+  const [productReviews, setProductReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -62,6 +64,26 @@ function ProductDetail() {
     };
 
     fetchProduct();
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/$/, "");
+    setReviewsLoading(true);
+    fetch(`${apiUrl}/api/products/${encodeURIComponent(id)}/reviews`, {
+      headers: { "ngrok-skip-browser-warning": "true" },
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Review belum dapat dimuat.");
+        return response.json();
+      })
+      .then((rows) => { if (!cancelled) setProductReviews(Array.isArray(rows) ? rows : []); })
+      .catch((err) => {
+        console.error("Gagal memuat review produk:", err);
+        if (!cancelled) setProductReviews([]);
+      })
+      .finally(() => { if (!cancelled) setReviewsLoading(false); });
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleIncrease = () => {
@@ -512,6 +534,20 @@ function ProductDetail() {
             </div>
           </section>
         )}
+
+        <section className="mt-20 border-t border-black/10 pt-12" aria-labelledby="product-reviews-heading">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.25em] text-black/45">Customer feedback</p>
+              <h2 id="product-reviews-heading" className="mt-3 text-3xl font-black uppercase tracking-tight">Ulasan Produk</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-black/60">Pengalaman pelanggan yang sudah menerima produk ini.</p>
+              {productReviews.length > 0 && <div className="mt-3 flex items-center gap-3"><span className="text-xl tracking-widest">{"★".repeat(Math.round(productReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / productReviews.length))}{"☆".repeat(5 - Math.round(productReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / productReviews.length))}</span><span className="text-sm font-bold">{(productReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / productReviews.length).toFixed(1)} / 5 · {productReviews.length} ulasan</span></div>}
+            </div>
+            <Link to="/reviews" className="inline-flex shrink-0 items-center justify-center border border-black bg-black px-6 py-4 text-xs font-black uppercase tracking-[.14em] text-white transition hover:bg-white hover:text-black">Tulis ulasan</Link>
+          </div>
+
+          {reviewsLoading ? <div className="mt-7 border border-black/10 bg-white p-6 text-sm text-black/55">Memuat ulasan...</div> : productReviews.length === 0 ? <div className="mt-7 rounded-2xl border border-dashed border-black/20 bg-white/70 p-8"><p className="font-bold">Belum ada ulasan untuk produk ini.</p><p className="mt-2 text-sm leading-6 text-black/55">Setelah pesanan berstatus Delivered, login lalu buka halaman Reviews untuk memberi rating dan komentar. Ulasan yang dikirim akan tampil di sini.</p><Link to="/history" className="mt-4 inline-flex border-b border-black pb-1 text-sm font-bold">Cek riwayat pesanan</Link></div> : <div className="mt-7 grid gap-4 md:grid-cols-2">{productReviews.map((review) => <article key={review.id} className="rounded-2xl border border-black/10 bg-white p-6 shadow-[0_10px_30px_rgba(0,0,0,.03)]"><div className="flex items-start justify-between gap-4"><div><p className="font-black">{review.customerName || "Pelanggan"}</p><p className="mt-1 text-xs text-black/45">{review.createdAt ? new Date(review.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : ""}</p></div><span className="shrink-0 tracking-widest text-black">{"★".repeat(Number(review.rating || 0))}{"☆".repeat(5 - Number(review.rating || 0))}</span></div>{review.comment && <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-black/70">“{review.comment}”</p>}</article>)}</div>}
+        </section>
       </div>
     </main>
   );
